@@ -14,6 +14,32 @@ export interface AppConfig {
   theme: Theme;
   /** NIP-65 relay list metadata */
   relayMetadata: RelayMetadata;
+  /** Site configuration */
+  siteConfig?: {
+    title: string;
+    logo: string;
+    favicon: string;
+    ogImage: string;
+    heroTitle: string;
+    heroSubtitle: string;
+    heroBackground: string;
+    showEvents: boolean;
+    showBlog: boolean;
+    maxEvents: number;
+    maxBlogPosts: number;
+    /** Default relay for reading content */
+    defaultRelay: string;
+    /** Publishing relays for blasting content */
+    publishRelays: string[];
+  };
+  /** Navigation configuration */
+  navigation?: Array<{
+    id: string;
+    label: string;
+    href: string;
+    isSubmenu: boolean;
+    parentId?: string;
+  }>;
 }
 
 export interface AppContextType {

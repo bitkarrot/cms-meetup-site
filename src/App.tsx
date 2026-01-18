@@ -12,6 +12,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { NostrLoginProvider } from '@nostrify/react/login';
 import { AppProvider } from '@/components/AppProvider';
 import { NWCProvider } from '@/contexts/NWCContext';
+import { AdminAuthProvider } from '@/contexts/AdminAuthContext';
 import { AppConfig } from '@/contexts/AppContext';
 import AppRouter from './AppRouter';
 
@@ -25,8 +26,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      staleTime: 60000, // 1 minute
-      gcTime: Infinity,
+      staleTime: 0, // No caching
+      gcTime: 0, // Clear cache immediately
+      retry: false, // Don't retry failed requests
     },
   },
 });
@@ -35,9 +37,10 @@ const defaultConfig: AppConfig = {
   theme: "light",
   relayMetadata: {
     relays: [
-      { url: 'wss://relay.ditto.pub', read: true, write: true },
-      { url: 'wss://relay.nostr.band', read: true, write: true },
+      { url: 'wss://swarm.hivetalk.org', read: true, write: true }, // Default relay for drafts
       { url: 'wss://relay.damus.io', read: true, write: true },
+      { url: 'wss://relay.primal.net', read: true, write: true },
+      { url: 'wss://nos.lol', read: true, write: true },
     ],
     updatedAt: 0,
   },
@@ -55,7 +58,9 @@ export function App() {
                 <TooltipProvider>
                   <Toaster />
                   <Suspense>
-                    <AppRouter />
+                    <AdminAuthProvider>
+                      <AppRouter />
+                    </AdminAuthProvider>
                   </Suspense>
                 </TooltipProvider>
               </NWCProvider>

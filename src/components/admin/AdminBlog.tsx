@@ -1,0 +1,227 @@
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
+import { TipTapEditor } from '@/components/TipTapEditor';
+import { useNostrPublish } from '@/hooks/useNostrPublish';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { Plus, Edit, Trash2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { useNostr } from '@nostrify/react';
+
+interface BlogPost {
+  id: string;
+  title: string;
+  content: string;
+  published: boolean;
+  created_at: number;
+  d: string;
+}
+
+export default function AdminBlog() {
+  const { nostr } = useNostr();
+  const { user } = useCurrentUser();
+  const { mutate: createEvent } = useNostrPublish();
+  const [isCreating, setIsCreating] = useState(false);
+  const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
+  const [formData, setFormData] = useState({
+    title: '',
+    content: '',
+    published: false,
+  });
+
+  // Fetch blog posts
+  const { data: posts, refetch } = useQuery({
+    queryKey: ['admin-blog-posts'],
+    queryFn: async () => {
+      const signal = AbortSignal.timeout(2000);
+      const events = await nostr.query([
+        { kinds: [30023], limit: 100 }
+      ], { signal });
+      
+      return events.map(event => ({
+        id: event.id,
+        title: event.tags.find(([name]) => name === 'title')?.[1] || 'Untitled',
+        content: event.content,
+        published: event.tags.find(([name]) => name === 'published')?.[1] === 'true',
+        created_at: event.created_at,
+        d: event.tags.find(([name]) => name === 'd')?.[1] || event.id,
+      }));
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !formData.title.trim() || !formData.content.trim()) return;
+
+    const tags = [
+      ['d', editingPost?.d || `blog-${Date.now()}`],
+      ['title', formData.title],
+      ['published', formData.published.toString()],
+    ];
+
+    if (editingPost) {
+      // Update existing post
+      createEvent({
+        kind: 30023,
+        content: formData.content,
+        tags,
+      });
+    } else {
+      // Create new post
+      createEvent({
+        kind: 30023,
+        content: formData.content,
+        tags,
+      });
+    }
+
+    // Reset form
+    setFormData({ title: '', content: '', published: false });
+    setIsCreating(false);
+    setEditingPost(null);
+    refetch();
+  };
+
+  const handleEdit = (post: BlogPost) => {
+    setFormData({
+      title: post.title,
+      content: post.content,
+      published: post.published,
+    });
+    setEditingPost(post);
+    setIsCreating(true);
+  };
+
+  const handleDelete = (post: BlogPost) => {
+    if (confirm('Are you sure you want to delete this post?')) {
+      // Create a deletion event (kind 5)
+      createEvent({
+        kind: 5,
+        tags: [['e', post.id]],
+      });
+      refetch();
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Blog Posts</h2>
+          <p className="text-muted-foreground">
+            Manage your blog posts and long-form content.
+          </p>
+        </div>
+        <Button onClick={() => setIsCreating(true)} disabled={isCreating}>
+          <Plus className="h-4 w-4 mr-2" />
+          New Post
+        </Button>
+      </div>
+
+      {/* Create/Edit Form */}
+      {isCreating && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{editingPost ? 'Edit Post' : 'Create New Post'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="title">Title</Label>
+                <Input
+                  id="title"
+                  value={formData.title}
+                  onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="Enter post title..."
+                  required
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="content">Content</Label>
+                <TipTapEditor
+                  content={formData.content}
+                  onChange={(content) => setFormData(prev => ({ ...prev, content }))}
+                  placeholder="Start writing your blog post..."
+                  className="mt-2"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="published"
+                  checked={formData.published}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, published: checked }))}
+                />
+                <Label htmlFor="published">Publish immediately</Label>
+              </div>
+
+              <div className="flex gap-2">
+                <Button type="submit">
+                  {editingPost ? 'Update Post' : 'Create Post'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsCreating(false);
+                    setEditingPost(null);
+                    setFormData({ title: '', content: '', published: false });
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Posts List */}
+      <div className="space-y-4">
+        {posts?.map((post) => (
+          <Card key={post.id}>
+            <CardContent className="pt-6">
+              <div className="flex items-start justify-between">
+                <div className="space-y-2 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold">{post.title}</h3>
+                    <Badge variant={post.published ? 'default' : 'secondary'}>
+                      {post.published ? 'Published' : 'Draft'}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground line-clamp-2">
+                    {post.content.replace(/<[^>]*>/g, '').slice(0, 200)}...
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Created: {new Date(post.created_at * 1000).toLocaleDateString()}
+                  </p>
+                </div>
+                <div className="flex gap-2 ml-4">
+                  <Button variant="ghost" size="sm" onClick={() => handleEdit(post)}>
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => handleDelete(post)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        
+        {(!posts || posts.length === 0) && (
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <p className="text-muted-foreground">No blog posts yet. Create your first post!</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
