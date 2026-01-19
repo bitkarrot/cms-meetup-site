@@ -64,8 +64,8 @@ export default function AdminSettings() {
     showBlog: true,
     maxEvents: 6,
     maxBlogPosts: 3,
-    defaultRelay: import.meta.env.VITE_DEFAULT_RELAY,
-    publishRelays: import.meta.env.VITE_PUBLISH_RELAYS.split(','),
+    defaultRelay: import.meta.env.VITE_DEFAULT_RELAY || '',
+    publishRelays: (import.meta.env.VITE_PUBLISH_RELAYS || '').split(',').filter(Boolean),
   });
 
   // Load existing site configuration from NIP-78 kind 30078
@@ -101,10 +101,11 @@ export default function AdminSettings() {
             defaultRelay: event.tags.find(([name]) => name === 'default_relay')?.[1] || import.meta.env.VITE_DEFAULT_RELAY,
             publishRelays: (() => {
               const relaysTag = event.tags.find(([name]) => name === 'publish_relays')?.[1];
+              const defaultRelays = (import.meta.env.VITE_PUBLISH_RELAYS || '').split(',').filter(Boolean);
               try {
-                return relaysTag ? JSON.parse(relaysTag) : import.meta.env.VITE_PUBLISH_RELAYS.split(',');
+                return relaysTag ? JSON.parse(relaysTag) : defaultRelays;
               } catch {
-                return import.meta.env.VITE_PUBLISH_RELAYS.split(',');
+                return defaultRelays;
               }
             })(),
           };
