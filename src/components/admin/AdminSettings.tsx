@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { Save, Plus, Trash2, GripVertical } from 'lucide-react';
+import { Save, Plus, Trash2, GripVertical, RefreshCw } from 'lucide-react';
 
 interface NavigationItem {
   id: string;
@@ -43,6 +43,7 @@ export default function AdminSettings() {
   const { nostr } = useNostr();
   const { user } = useCurrentUser();
   const [isSaving, setIsSaving] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [navigation, setNavigation] = useState<NavigationItem[]>([
     { id: '1', name: 'Home', href: '/', isSubmenu: false },
@@ -71,79 +72,81 @@ export default function AdminSettings() {
   }));
 
   // Load existing site configuration from NIP-78 kind 30078
-  useEffect(() => {
-    const loadExistingConfig = async () => {
-      if (!user) return;
+  const handleLoadConfig = async () => {
+    if (!user) return;
+    setIsRefreshing(true);
 
-      try {
-        const signal = AbortSignal.timeout(3000);
-        const events = await nostr.query([
-          {
-            kinds: [30078],
-            authors: [user.pubkey],
-            '#d': ['nostr-meetup-site-config'],
-            limit: 1
-          }
-        ], { signal });
-
-        if (events.length > 0) {
-          const event = events[0];
-          const loadedConfig = {
-            title: event.tags.find(([name]) => name === 'title')?.[1] || 'My Meetup Site',
-            logo: event.tags.find(([name]) => name === 'logo')?.[1] || '',
-            favicon: event.tags.find(([name]) => name === 'favicon')?.[1] || '',
-            ogImage: event.tags.find(([name]) => name === 'og_image')?.[1] || '',
-            heroTitle: event.tags.find(([name]) => name === 'hero_title')?.[1] || 'Welcome to Our Community',
-            heroSubtitle: event.tags.find(([name]) => name === 'hero_subtitle')?.[1] || 'Join us for amazing meetups and events',
-            heroBackground: event.tags.find(([name]) => name === 'hero_background')?.[1] || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1920&h=1080&fit=crop',
-            showEvents: event.tags.find(([name]) => name === 'show_events')?.[1] === 'true',
-            showBlog: event.tags.find(([name]) => name === 'show_blog')?.[1] === 'true',
-            maxEvents: parseInt(event.tags.find(([name]) => name === 'max_events')?.[1] || '6'),
-            maxBlogPosts: parseInt(event.tags.find(([name]) => name === 'max_blog_posts')?.[1] || '3'),
-            defaultRelay: event.tags.find(([name]) => name === 'default_relay')?.[1] || import.meta.env.VITE_DEFAULT_RELAY,
-            publishRelays: (() => {
-              const relaysTag = event.tags.find(([name]) => name === 'publish_relays')?.[1];
-              const defaultRelays = (import.meta.env.VITE_PUBLISH_RELAYS || '').split(',').filter(Boolean);
-              if (!relaysTag) return defaultRelays;
-              try {
-                const parsed = JSON.parse(relaysTag);
-                return Array.isArray(parsed) ? parsed : defaultRelays;
-              } catch {
-                return defaultRelays;
-              }
-            })(),
-          };
-
-          // Also load navigation from content
-          let loadedNavigation = [];
-          try {
-            loadedNavigation = JSON.parse(event.content);
-          } catch {
-            // Use default navigation
-          }
-
-          setSiteConfig(loadedConfig);
-          setNavigation(loadedNavigation);
-          // Update local app config immediately
-          updateConfig((currentConfig) => ({
-            ...currentConfig,
-            siteConfig: loadedConfig,
-            navigation: loadedNavigation,
-          }));
-
-          // Clear all query cache to force refresh with new config
-          queryClient.clear();
+    try {
+      const signal = AbortSignal.timeout(5000);
+      const events = await nostr.query([
+        {
+          kinds: [30078],
+          authors: [user.pubkey],
+          '#d': ['nostr-meetup-site-config'],
+          limit: 1
         }
-      } catch (error) {
-        console.error('Failed to load existing config:', error);
+      ], { signal });
+
+      if (events.length > 0) {
+        const event = events[0];
+        const loadedConfig = {
+          title: event.tags.find(([name]) => name === 'title')?.[1] || 'My Meetup Site',
+          logo: event.tags.find(([name]) => name === 'logo')?.[1] || '',
+          favicon: event.tags.find(([name]) => name === 'favicon')?.[1] || '',
+          ogImage: event.tags.find(([name]) => name === 'og_image')?.[1] || '',
+          heroTitle: event.tags.find(([name]) => name === 'hero_title')?.[1] || 'Welcome to Our Community',
+          heroSubtitle: event.tags.find(([name]) => name === 'hero_subtitle')?.[1] || 'Join us for amazing meetups and events',
+          heroBackground: event.tags.find(([name]) => name === 'hero_background')?.[1] || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1920&h=1080&fit=crop',
+          showEvents: event.tags.find(([name]) => name === 'show_events')?.[1] === 'true',
+          showBlog: event.tags.find(([name]) => name === 'show_blog')?.[1] === 'true',
+          maxEvents: parseInt(event.tags.find(([name]) => name === 'max_events')?.[1] || '6'),
+          maxBlogPosts: parseInt(event.tags.find(([name]) => name === 'max_blog_posts')?.[1] || '3'),
+          defaultRelay: event.tags.find(([name]) => name === 'default_relay')?.[1] || import.meta.env.VITE_DEFAULT_RELAY,
+          publishRelays: (() => {
+            const relaysTag = event.tags.find(([name]) => name === 'publish_relays')?.[1];
+            const defaultRelays = (import.meta.env.VITE_PUBLISH_RELAYS || '').split(',').filter(Boolean);
+            if (!relaysTag) return defaultRelays;
+            try {
+              const parsed = JSON.parse(relaysTag);
+              return Array.isArray(parsed) ? parsed : defaultRelays;
+            } catch {
+              return defaultRelays;
+            }
+          })(),
+        };
+
+        // Also load navigation from content
+        let loadedNavigation: NavigationItem[] = [];
+        try {
+          const parsedContent = JSON.parse(event.content);
+          if (Array.isArray(parsedContent)) {
+            loadedNavigation = parsedContent;
+          } else if (parsedContent && typeof parsedContent === 'object' && Array.isArray(parsedContent.navigation)) {
+            loadedNavigation = parsedContent.navigation;
+          }
+        } catch {
+          // Use default navigation
+        }
+
+        setSiteConfig(loadedConfig);
+        setNavigation(loadedNavigation);
+        
+        // Update local app config immediately
+        updateConfig((currentConfig) => ({
+          ...currentConfig,
+          siteConfig: loadedConfig,
+          navigation: loadedNavigation,
+        }));
+
+        // Clear all query cache to force refresh with new config
+        queryClient.clear();
       }
-    };
-
-    loadExistingConfig();
-  }, [nostr, updateConfig, queryClient, user]);
-
-  // Load existing site configuration
-
+    } catch (error) {
+      console.error('Failed to load existing config:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const handleSaveConfig = async () => {
     setIsSaving(true);
@@ -223,10 +226,16 @@ export default function AdminSettings() {
             Configure your meetup site appearance and navigation.
           </p>
         </div>
-        <Button onClick={handleSaveConfig} disabled={isSaving}>
-          <Save className="h-4 w-4 mr-2" />
-          {isSaving ? 'Saving...' : 'Save Changes'}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleLoadConfig} disabled={isRefreshing || !user}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Refresh from Relay'}
+          </Button>
+          <Button onClick={handleSaveConfig} disabled={isSaving}>
+            <Save className="h-4 w-4 mr-2" />
+            {isSaving ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </div>
       </div>
 
       {/* Basic Site Configuration */}

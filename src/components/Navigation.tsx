@@ -23,7 +23,7 @@ export default function Navigation() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const siteConfig = config.siteConfig;
-  const configNavigation = config.navigation || defaultNavigation;
+  const configNavigation = Array.isArray(config.navigation) ? config.navigation : defaultNavigation;
 
   const isActivePath = (href: string) => {
     if (href === '/') {
