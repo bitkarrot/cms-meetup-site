@@ -5,13 +5,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { TipTapEditor } from '@/components/TipTapEditor';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useDefaultRelay } from '@/hooks/useDefaultRelay';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Edit, Trash2, Calendar, MapPin, Share2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Calendar, MapPin, Share2, Eye, Layout } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 
 interface MeetupEvent {
   id: string;
@@ -383,13 +386,36 @@ export default function AdminEvents() {
               </div>
 
               <div>
-                <Label htmlFor="description">Description</Label>
-                <TipTapEditor
-                  content={formData.description}
-                  onChange={(content) => setFormData(prev => ({ ...prev, description: content }))}
-                  placeholder="Event details and description..."
-                  className="mt-2"
-                />
+                <Label htmlFor="description">Description (Markdown)</Label>
+                <Tabs defaultValue="edit" className="mt-2">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="edit">
+                      <Layout className="h-4 w-4 mr-2" />
+                      Edit
+                    </TabsTrigger>
+                    <TabsTrigger value="preview">
+                      <Eye className="h-4 w-4 mr-2" />
+                      Preview
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="edit" className="mt-2">
+                    <Textarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Event details and description in Markdown..."
+                      className="min-h-[200px] font-mono"
+                      required
+                    />
+                  </TabsContent>
+                  <TabsContent value="preview" className="mt-2">
+                    <div className="min-h-[200px] p-4 border rounded-md prose prose-sm dark:prose-invert max-w-none bg-white dark:bg-slate-950 overflow-auto">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {formData.description || "*Nothing to preview*"}
+                      </ReactMarkdown>
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </div>
 
               {/* Relay Selection */}

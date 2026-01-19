@@ -39,7 +39,7 @@ const sortOptions = [
 export default function EventsPage() {
   const { nostr } = useDefaultRelay();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('upcoming');
   const [sort, setSort] = useState('date-asc');
 
   const { data: events = [], isLoading } = useQuery({

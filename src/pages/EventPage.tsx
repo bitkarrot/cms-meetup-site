@@ -5,8 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import EventRSVP from '@/components/EventRSVP';
-import { NoteContent } from '@/components/NoteContent';
 import { useQuery } from '@tanstack/react-query';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useDefaultRelay } from '@/hooks/useDefaultRelay';
 import { ArrowLeft, Calendar, MapPin, Clock } from 'lucide-react';
 
@@ -164,8 +165,10 @@ export default function EventPage() {
 
             {/* Event Description */}
             {event.description && (
-              <div className="prose prose-sm max-w-none">
-                <NoteContent event={{ content: event.description, tags: [], kind: 1, created_at: 0, pubkey: '', id: '', sig: '' }} />
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {event.description}
+                </ReactMarkdown>
               </div>
             )}
           </CardContent>
