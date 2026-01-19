@@ -3,6 +3,8 @@ import { Link, useLocation, Outlet } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { useTheme } from '@/hooks/useTheme';
+import { LoginArea } from '@/components/auth/LoginArea';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -11,7 +13,9 @@ import {
   Settings, 
   Home,
   Menu,
-  X
+  X,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 const navigation = [
@@ -26,6 +30,7 @@ const navigation = [
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const { theme, setTheme } = useTheme();
 
   return (
     <div className="min-h-screen bg-background">
@@ -114,6 +119,22 @@ export default function AdminLayout() {
               <h1 className="text-lg font-semibold">
                 {navigation.find(item => item.href === location.pathname)?.name || 'Admin'}
               </h1>
+            </div>
+            <div className="flex items-center gap-x-4 lg:gap-x-6">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                title="Toggle Theme"
+              >
+                {theme === 'dark' ? (
+                  <Sun className="h-4 w-4" />
+                ) : (
+                  <Moon className="h-4 w-4" />
+                )}
+              </Button>
+              <Separator orientation="vertical" className="h-6" />
+              <LoginArea />
             </div>
           </div>
         </div>
