@@ -113,13 +113,13 @@ export default function Navigation() {
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <div className="md:hidden py-4 border-t">
-            <div className="space-y-3">
+            <div className="flex flex-col space-y-4">
               {configNavigation.map((item) => (
                 <Link
                   key={item.id}
                   to={item.href}
-                  className={`text-sm font-medium transition-colors hover:text-primary ${
-                    isActivePath(item.href) ? 'text-primary' : 'text-muted-foreground'
+                  className={`text-base font-medium transition-colors hover:text-primary px-2 py-1 rounded-md ${
+                    isActivePath(item.href) ? 'text-primary bg-primary/10' : 'text-muted-foreground'
                   }`}
                   onClick={() => setMobileMenuOpen(false)}
                 >
@@ -127,16 +127,38 @@ export default function Navigation() {
                 </Link>
               ))}
             </div>
-            <div className="mt-4 pt-4 border-t">
+            <div className="mt-4 pt-4 border-t space-y-4">
               {user && (
-                <Button variant="ghost" size="sm" asChild className="w-full justify-start">
+                <Button variant="ghost" size="lg" asChild className="w-full justify-start">
                   <Link to="/admin" onClick={() => setMobileMenuOpen(false)}>
-                    <Settings className="h-4 w-4 mr-2" />
+                    <Settings className="h-5 w-5 mr-3" />
                     Admin
                   </Link>
                 </Button>
               )}
-              <LoginArea className="flex" />
+              
+              <div className="px-2">
+                <Button
+                  variant="ghost"
+                  size="lg"
+                  className="w-full justify-start"
+                  onClick={() => {
+                    setTheme(theme === 'dark' ? 'light' : 'dark');
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  {theme === 'dark' ? (
+                    <Sun className="h-5 w-5 mr-3" />
+                  ) : (
+                    <Moon className="h-5 w-5 mr-3" />
+                  )}
+                  Toggle Theme
+                </Button>
+              </div>
+
+              <div className="px-2 pt-2">
+                <LoginArea />
+              </div>
             </div>
           </div>
         )}
