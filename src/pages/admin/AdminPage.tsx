@@ -3,7 +3,11 @@ import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 
 export default function AdminPage() {
-  const { isAdmin } = useAdminAuth();
+  const { isAdmin, isLoading } = useAdminAuth();
+  
+  if (isLoading) {
+    return null;
+  }
   
   if (!isAdmin) {
     return <Navigate to="/admin/login" replace />;
