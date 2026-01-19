@@ -8,11 +8,11 @@ import { Settings, Menu, X, Moon, Sun } from 'lucide-react';
 import { useState } from 'react';
 
 const defaultNavigation = [
-  { name: 'Home', href: '/', isSubmenu: false },
-  { name: 'Events', href: '/events', isSubmenu: false },
-  { name: 'Blog', href: '/blog', isSubmenu: false },
-  { name: 'About', href: '/about', isSubmenu: false },
-  { name: 'Contact', href: '/contact', isSubmenu: false },
+  { id: 'home', name: 'Home', href: '/', isSubmenu: false },
+  { id: 'events', name: 'Events', href: '/events', isSubmenu: false },
+  { id: 'blog', name: 'Blog', href: '/blog', isSubmenu: false },
+  { id: 'about', name: 'About', href: '/about', isSubmenu: false },
+  { id: 'contact', name: 'Contact', href: '/contact', isSubmenu: false },
 ];
 
 export default function Navigation() {

@@ -35,7 +35,7 @@ export interface AppConfig {
   /** Navigation configuration */
   navigation?: Array<{
     id: string;
-    label: string;
+    name: string;
     href: string;
     isSubmenu: boolean;
     parentId?: string;

@@ -14,7 +14,7 @@ import { Save, Plus, Trash2, GripVertical } from 'lucide-react';
 
 interface NavigationItem {
   id: string;
-  label: string;
+  name: string;
   href: string;
   isSubmenu: boolean;
   parentId?: string;
@@ -45,11 +45,11 @@ export default function AdminSettings() {
   const [isSaving, setIsSaving] = useState(false);
 
   const [navigation, setNavigation] = useState<NavigationItem[]>([
-    { id: '1', label: 'Home', href: '/', isSubmenu: false },
-    { id: '2', label: 'Events', href: '/events', isSubmenu: false },
-    { id: '3', label: 'Blog', href: '/blog', isSubmenu: false },
-    { id: '4', label: 'About', href: '/about', isSubmenu: false },
-    { id: '5', label: 'Contact', href: '/contact', isSubmenu: false },
+    { id: '1', name: 'Home', href: '/', isSubmenu: false },
+    { id: '2', name: 'Events', href: '/events', isSubmenu: false },
+    { id: '3', name: 'Blog', href: '/blog', isSubmenu: false },
+    { id: '4', name: 'About', href: '/about', isSubmenu: false },
+    { id: '5', name: 'Contact', href: '/contact', isSubmenu: false },
   ]);
 
   const [siteConfig, setSiteConfig] = useState<SiteConfig>({
@@ -186,7 +186,7 @@ export default function AdminSettings() {
   const addNavigationItem = (isSubmenu: boolean = false, parentId?: string) => {
     const newItem: NavigationItem = {
       id: Date.now().toString(),
-      label: 'New Item',
+      name: 'New Item',
       href: '/new-page',
       isSubmenu,
       parentId,
@@ -449,9 +449,9 @@ export default function AdminSettings() {
                 <GripVertical className="h-4 w-4 text-muted-foreground" />
                 <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
                   <Input
-                    value={item.label}
-                    onChange={(e) => updateNavigationItem(item.id, { label: e.target.value })}
-                    placeholder="Label"
+                    value={item.name}
+                    onChange={(e) => updateNavigationItem(item.id, { name: e.target.value })}
+                    placeholder="Name"
                   />
                   <Input
                     value={item.href}
@@ -487,9 +487,9 @@ export default function AdminSettings() {
                     <GripVertical className="h-4 w-4 text-muted-foreground" />
                     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
                       <Input
-                        value={item.label}
-                        onChange={(e) => updateNavigationItem(item.id, { label: e.target.value })}
-                        placeholder="Label"
+                        value={item.name}
+                        onChange={(e) => updateNavigationItem(item.id, { name: e.target.value })}
+                        placeholder="Name"
                       />
                       <Input
                         value={item.href}
