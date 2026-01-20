@@ -157,37 +157,60 @@ function useTweakCNTheme(themeUrl?: string) {
     }
 
     const fetchTheme = async () => {
+      console.log('[useTweakCNTheme] Fetching theme from:', themeUrl);
       try {
         const response = await fetch(themeUrl);
-        if (!response.ok) throw new Error('Failed to fetch theme');
+        if (!response.ok) throw new Error(`Failed to fetch theme: ${response.statusText}`);
         const themeData = await response.json();
+        console.log('[useTweakCNTheme] Received theme data:', themeData);
+        
+        const vars = themeData.cssVars || themeData;
 
         // TweakCN themes usually provide CSS variables in a specific format
         // We'll create a style tag and inject the variables
         let cssVars = '';
         
         // Handle both light and dark modes if provided in the JSON
-        if (themeData.light) {
-          cssVars += `:root { ${Object.entries(themeData.light).map(([k, v]) => `--${k}: ${v};`).join(' ')} }\n`;
+        const formatVars = (entries: Record<string, string>) => {
+          return Object.entries(entries)
+            .map(([k, v]) => {
+              // Map TweakCN names to our CSS variable names if they differ
+              const varName = k === 'sidebar' ? 'sidebar-background' : k;
+              return `--${varName}: ${v};`;
+            })
+            .join(' ');
+        };
+
+        if (vars.light) {
+          cssVars += `:root { ${formatVars(vars.light)} }\n`;
         }
-        if (themeData.dark) {
-          cssVars += `.dark { ${Object.entries(themeData.dark).map(([k, v]) => `--${k}: ${v};`).join(' ')} }\n`;
+        if (vars.dark) {
+          cssVars += `.dark { ${formatVars(vars.dark)} }\n`;
         }
         
-        // If it's a flat object (some TweakCN exports), apply it to root
-        if (!themeData.light && !themeData.dark) {
-          cssVars += `:root { ${Object.entries(themeData).map(([k, v]) => typeof v === 'string' ? `--${k}: ${v};` : '').join(' ')} }`;
+        // If it's a flat object or has theme-wide vars, apply those too
+        if (vars.theme) {
+          cssVars += `:root { ${formatVars(vars.theme)} }\n`;
         }
 
+        // If it's just a flat object (fallback)
+        if (!vars.light && !vars.dark && !vars.theme) {
+          cssVars += `:root { ${formatVars(vars)} }`;
+        }
+
+        console.log('[useTweakCNTheme] Injected CSS variables count:', cssVars.length);
+        
         let styleTag = document.getElementById('tweakcn-theme') as HTMLStyleElement;
         if (!styleTag) {
           styleTag = document.createElement('style');
           styleTag.id = 'tweakcn-theme';
           document.head.appendChild(styleTag);
+          console.log('[useTweakCNTheme] Created new style tag');
         }
         styleTag.textContent = cssVars;
+        console.log('[useTweakCNTheme] Style tag updated successfully');
       } catch (error) {
-        console.error('Failed to apply TweakCN theme:', error);
+        console.error('[useTweakCNTheme] Error applying TweakCN theme:', error);
       }
     };
 
