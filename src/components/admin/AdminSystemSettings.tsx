@@ -64,7 +64,7 @@ function UserRoleManager({
             {name}
             {isThisUserMaster && <Badge variant="default" className="bg-purple-600 hover:bg-purple-700">Master User</Badge>}
             {!isThisUserMaster && role === 'primary' && <Badge variant="default" className="bg-green-600 hover:bg-green-700">Primary Admin</Badge>}
-            {!isThisUserMaster && role === 'secondary' && <Badge variant="secondary">Secondary Admin</Badge>}
+            {!isThisUserMaster && role === 'secondary' && <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">Secondary Admin</Badge>}
             {!isThisUserMaster && !role && <Badge variant="outline" className="text-muted-foreground">Unassigned</Badge>}
           </div>
           <div className="text-xs text-muted-foreground font-mono">{pubkey.slice(0, 8)}...{pubkey.slice(-8)}</div>
