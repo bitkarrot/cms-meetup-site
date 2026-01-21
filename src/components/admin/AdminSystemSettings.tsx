@@ -333,7 +333,7 @@ export default function AdminSystemSettings() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="defaultRelay">Default Relay (for content)</Label>
+            <Label htmlFor="defaultRelay">Primary Relay</Label>
             <Input
               id="defaultRelay"
               value={siteConfig.defaultRelay}
@@ -341,7 +341,7 @@ export default function AdminSystemSettings() {
               placeholder="wss://relay.example.com"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              This relay will be used to read all content for the public site.
+              This relay is used as the primary source for reading and publishing site content.
             </p>
             {!siteConfig.defaultRelay?.trim() && (
               <div className="flex items-center gap-2 mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 rounded-md text-sm border border-amber-200 dark:border-amber-800">
@@ -352,7 +352,7 @@ export default function AdminSystemSettings() {
           </div>
           
           <div>
-            <Label htmlFor="publishRelays">Publishing Relays</Label>
+            <Label htmlFor="publishRelays">Additional Publishing Relays</Label>
             <div className="space-y-2">
               {siteConfig.publishRelays.map((relay, index) => (
                 <div key={index} className="flex gap-2">
@@ -391,7 +391,7 @@ export default function AdminSystemSettings() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              These relays will receive all published content (events, blog posts, etc.).
+              These relays will also receive all published content (events, blog posts, etc.) for redundancy.
             </p>
             {siteConfig.publishRelays.filter(r => r.trim() !== '').length === 0 && (
               <div className="flex items-center gap-2 mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 rounded-md text-sm border border-amber-200 dark:border-amber-800">
