@@ -6,12 +6,13 @@ interface NostrJsonResponse {
   nip46?: Record<string, string[]>;
 }
 
-const DEFAULT_NOSTR_JSON_URL = import.meta.env.VITE_REMOTE_NOSTR_JSON_URL || 'https://honey.hivetalk.org/.well-known/nostr.json';
+const DEFAULT_NOSTR_JSON_URL = import.meta.env.VITE_REMOTE_NOSTR_JSON_URL || '';
 
 export function useRemoteNostrJson(url: string = DEFAULT_NOSTR_JSON_URL) {
   return useQuery({
     queryKey: ['remote-nostr-json', url],
     queryFn: async () => {
+      if (!url) return null;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch nostr.json');

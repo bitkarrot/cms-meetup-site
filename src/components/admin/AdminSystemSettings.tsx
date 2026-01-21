@@ -8,7 +8,7 @@ import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { Save, Plus, Trash2, RefreshCw, User, Shield, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Save, Plus, Trash2, RefreshCw, User, Shield, ShieldAlert, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useRemoteNostrJson } from '@/hooks/useRemoteNostrJson';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -118,10 +118,13 @@ export default function AdminSystemSettings() {
     showBlog: config.siteConfig?.showBlog ?? true,
     maxEvents: config.siteConfig?.maxEvents ?? 6,
     maxBlogPosts: config.siteConfig?.maxBlogPosts ?? 3,
-    defaultRelay: config.siteConfig?.defaultRelay ?? import.meta.env.VITE_DEFAULT_RELAY ?? '',
-    publishRelays: config.siteConfig?.publishRelays ?? Array.from(
-      (import.meta.env.VITE_PUBLISH_RELAYS || '').split(',').filter(Boolean)
-    ),
+    defaultRelay: config.siteConfig?.defaultRelay ?? import.meta.env.VITE_DEFAULT_RELAY,
+    publishRelays: config.siteConfig?.publishRelays ?? [
+      import.meta.env.VITE_DEFAULT_RELAY,
+      'wss://relay.damus.io',
+      'wss://relay.primal.net',
+      'wss://nos.lol'
+    ].filter(Boolean),
     adminRoles: config.siteConfig?.adminRoles ?? {},
     tweakcnThemeUrl: config.siteConfig?.tweakcnThemeUrl ?? '',
   }));
@@ -253,6 +256,8 @@ export default function AdminSystemSettings() {
 
   const handleSaveConfig = async () => {
     setIsSaving(true);
+    const filteredRelays = siteConfig.publishRelays.filter(r => r.trim() !== '');
+
     try {
       const configTags = [
         ['d', 'nostr-meetup-site-config'],
@@ -268,7 +273,7 @@ export default function AdminSystemSettings() {
         ['max_events', siteConfig.maxEvents.toString()],
         ['max_blog_posts', siteConfig.maxBlogPosts.toString()],
         ['default_relay', siteConfig.defaultRelay],
-        ['publish_relays', JSON.stringify(siteConfig.publishRelays)],
+        ['publish_relays', JSON.stringify(filteredRelays)],
         ['admin_roles', JSON.stringify(siteConfig.adminRoles)],
         ['tweakcn_theme_url', siteConfig.tweakcnThemeUrl || ''],
         ['updated_at', Math.floor(Date.now() / 1000).toString()],
@@ -287,6 +292,7 @@ export default function AdminSystemSettings() {
         siteConfig: {
           ...(currentConfig.siteConfig || {}),
           ...siteConfig,
+          publishRelays: filteredRelays,
           updatedAt: Math.floor(Date.now() / 1000),
         },
       }));
@@ -332,11 +338,17 @@ export default function AdminSystemSettings() {
               id="defaultRelay"
               value={siteConfig.defaultRelay}
               onChange={(e) => setSiteConfig(prev => ({ ...prev, defaultRelay: e.target.value }))}
-              placeholder={import.meta.env.VITE_DEFAULT_RELAY}
+              placeholder="wss://relay.example.com"
             />
             <p className="text-xs text-muted-foreground mt-1">
               This relay will be used to read all content for the public site.
             </p>
+            {!siteConfig.defaultRelay?.trim() && (
+              <div className="flex items-center gap-2 mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 rounded-md text-sm border border-amber-200 dark:border-amber-800">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                <span>Warning: No default relay configured. The site may not be able to read content.</span>
+              </div>
+            )}
           </div>
           
           <div>
@@ -381,6 +393,12 @@ export default function AdminSystemSettings() {
             <p className="text-xs text-muted-foreground mt-1">
               These relays will receive all published content (events, blog posts, etc.).
             </p>
+            {siteConfig.publishRelays.filter(r => r.trim() !== '').length === 0 && (
+              <div className="flex items-center gap-2 mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 rounded-md text-sm border border-amber-200 dark:border-amber-800">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                <span>Warning: No publishing relays configured. Content will not be published to any relays.</span>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

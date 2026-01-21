@@ -162,10 +162,13 @@ export default function AdminSettings() {
     showBlog: config.siteConfig?.showBlog ?? true,
     maxEvents: config.siteConfig?.maxEvents ?? 6,
     maxBlogPosts: config.siteConfig?.maxBlogPosts ?? 3,
-    defaultRelay: config.siteConfig?.defaultRelay ?? import.meta.env.VITE_DEFAULT_RELAY ?? '',
-    publishRelays: config.siteConfig?.publishRelays ?? Array.from(
-      (import.meta.env.VITE_PUBLISH_RELAYS || '').split(',').filter(Boolean)
-    ),
+    defaultRelay: config.siteConfig?.defaultRelay ?? import.meta.env.VITE_DEFAULT_RELAY,
+    publishRelays: config.siteConfig?.publishRelays ?? [
+      import.meta.env.VITE_DEFAULT_RELAY,
+      'wss://relay.damus.io',
+      'wss://relay.primal.net',
+      'wss://nos.lol'
+    ].filter(Boolean),
     adminRoles: config.siteConfig?.adminRoles ?? {},
     tweakcnThemeUrl: config.siteConfig?.tweakcnThemeUrl ?? '',
   }));
@@ -184,7 +187,7 @@ export default function AdminSettings() {
       siteConfig.showBlog !== (originalConfig.showBlog ?? true) ||
       siteConfig.maxEvents !== (originalConfig.maxEvents ?? 6) ||
       siteConfig.maxBlogPosts !== (originalConfig.maxBlogPosts ?? 3) ||
-      siteConfig.defaultRelay !== (originalConfig.defaultRelay ?? import.meta.env.VITE_DEFAULT_RELAY ?? '') ||
+      siteConfig.defaultRelay !== (originalConfig.defaultRelay ?? import.meta.env.VITE_DEFAULT_RELAY) ||
       siteConfig.tweakcnThemeUrl !== (originalConfig.tweakcnThemeUrl ?? '');
     
     const hasNavChanged = JSON.stringify(navigation) !== JSON.stringify(config.navigation || [
@@ -446,6 +449,8 @@ export default function AdminSettings() {
 
   const handleSaveConfig = async () => {
     setIsSaving(true);
+    const filteredRelays = siteConfig.publishRelays.filter(r => r.trim() !== '');
+    
     try {
       // Save site configuration as a replaceable event (kind 30078) following NIP-78
       console.log('Saving config to Nostr and local context...', siteConfig);
@@ -463,7 +468,7 @@ export default function AdminSettings() {
         ['max_events', siteConfig.maxEvents.toString()],
         ['max_blog_posts', siteConfig.maxBlogPosts.toString()],
         ['default_relay', siteConfig.defaultRelay],
-        ['publish_relays', JSON.stringify(siteConfig.publishRelays)],
+        ['publish_relays', JSON.stringify(filteredRelays)],
         ['admin_roles', JSON.stringify(siteConfig.adminRoles)],
         ['tweakcn_theme_url', siteConfig.tweakcnThemeUrl || ''],
         ['updated_at', Math.floor(Date.now() / 1000).toString()],
@@ -484,6 +489,7 @@ export default function AdminSettings() {
         siteConfig: {
           ...(currentConfig.siteConfig || {}),
           ...siteConfig,
+          publishRelays: filteredRelays,
           updatedAt: Math.floor(Date.now() / 1000),
         },
         navigation,

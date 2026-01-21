@@ -33,14 +33,18 @@ const queryClient = new QueryClient({
   },
 });
 
+const DEFAULT_PUBLISH_RELAYS = [
+  import.meta.env.VITE_DEFAULT_RELAY,
+  'wss://relay.damus.io',
+  'wss://relay.primal.net',
+  'wss://nos.lol'
+].filter(Boolean);
+
 const defaultConfig: AppConfig = {
   theme: "light",
   relayMetadata: {
     relays: [
       { url: import.meta.env.VITE_DEFAULT_RELAY, read: true, write: true },
-      { url: import.meta.env.VITE_READ_RELAY_1, read: true, write: true },
-      { url: import.meta.env.VITE_READ_RELAY_2, read: true, write: true },
-      { url: import.meta.env.VITE_READ_RELAY_3, read: true, write: true },
     ],
     updatedAt: 0,
   },
@@ -56,10 +60,8 @@ const defaultConfig: AppConfig = {
     showBlog: true,
     maxEvents: 6,
     maxBlogPosts: 3,
-    defaultRelay: import.meta.env.VITE_DEFAULT_RELAY || '',
-    publishRelays: Array.from(
-      (import.meta.env.VITE_PUBLISH_RELAYS || '').split(',').filter(Boolean)
-    ),
+    defaultRelay: import.meta.env.VITE_DEFAULT_RELAY,
+    publishRelays: DEFAULT_PUBLISH_RELAYS,
   },
   navigation: [
     { id: '1', name: 'Home', href: '/', isSubmenu: false },

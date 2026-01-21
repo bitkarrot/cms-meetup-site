@@ -1,5 +1,7 @@
 # Meetup Site - Nostr-Powered CMS
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbitkarrot%2Fmeetup-site)
+
 A comprehensive meetup and event management system built with React, TypeScript, and Nostr. This project provides both an admin CMS for content management and a public-facing website for community engagement.
 
 ## Features
@@ -37,16 +39,16 @@ A comprehensive meetup and event management system built with React, TypeScript,
 ## Configuration
 
 ### Relays
-- **Default Relay**: `wss://swarm.hivetalk.org` (for content reading)
+- **Default Relay**: (configured via VITE_DEFAULT_RELAY)
 - **Publishing Relays**: 
+  - (VITE_DEFAULT_RELAY)
   - `wss://relay.damus.io`
   - `wss://relay.primal.net` 
   - `wss://nos.lol`
 - **Admin Control**: Configure which relays to use for content distribution
 
 ### Admin Access
-Admin access is controlled by a remote nostr.json file located at:
-`https://honey.hivetalk.org/.well-known/nostr.json`
+Admin access is controlled by a remote nostr.json file (configured via VITE_REMOTE_NOSTR_JSON_URL).
 
 ## NIPs Used
 
