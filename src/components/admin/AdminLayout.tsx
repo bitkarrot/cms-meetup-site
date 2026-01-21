@@ -139,11 +139,11 @@ export default function AdminLayout() {
                 {theme === 'dark' ? (
                   <>
                   <Sun className="h-5 w-5 mr-3" />
-                  <span className="ml-2">Light</span>
+                  {/* <span className="ml-2">Light</span> */}
                   </>
                 ) : (<>
                   <Moon className="h-5 w-5 mr-3" />
-                  <span className="ml-2">Dark</span>
+                  {/* <span className="ml-2">Dark</span> */}
                   </>)}
 
 

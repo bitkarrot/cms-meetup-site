@@ -103,12 +103,12 @@ export default function Navigation() {
                 {theme === 'dark' ? (
                   <>
                     <Sun className="h-4 w-4" />
-                    <span className="ml-2">Light</span>
+                    {/* <span className="ml-2">Light</span> */}
                   </>
                 ) : (
                   <>
                     <Moon className="h-4 w-4" />
-                    <span className="ml-2">Dark</span>
+                    {/* <span className="ml-2">Dark</span> */}
                   </>
                 )}
               </Button>
