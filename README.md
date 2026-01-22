@@ -4,6 +4,18 @@ Deploy with Vercel
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbitkarrot%2Fmeetup-site) 
 
+You Must configure your .env in vercel before running the app
+
+```sh
+# Remote nostr.json for admin authentication
+VITE_REMOTE_NOSTR_JSON_URL=
+
+# Default relay for reading content
+VITE_DEFAULT_RELAY=
+
+# Master pubkey (owner of the site)
+VITE_MASTER_PUBKEY=
+
 A comprehensive meetup and event management system built with React, TypeScript, and Nostr. This project provides both an admin CMS for content management and a public-facing website for community engagement.
 
 ## Features

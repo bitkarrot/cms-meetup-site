@@ -41,6 +41,10 @@ export function AppRouter() {
         <Route path="/about" element={<StaticPage pathOverride="/about" />} />
         <Route path="/contact" element={<StaticPage pathOverride="/contact" />} />
         <Route path="/p/:path" element={<StaticPage />} />
+        
+        {/* Dynamic Static Pages (catch-all for routes not matched above) */}
+        <Route path="/:path" element={<StaticPage />} />
+
         {/* Admin routes */}
         <Route path="/admin" element={<AdminRoutes />}>
           <Route index element={<AdminPage />} />
@@ -52,6 +56,7 @@ export function AppRouter() {
         </Route>
         <Route path="/admin/login" element={<AdminLoginPage />} />
         {/* NIP-19 route for npub1, note1, naddr1, nevent1, nprofile1 */}
+        {/* Note: This is now partially handled by the StaticPage catch-all if it doesn't match a NIP-19 prefix */}
         <Route path="/:nip19" element={<NIP19Page />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
