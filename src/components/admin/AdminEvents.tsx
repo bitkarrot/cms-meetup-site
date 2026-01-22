@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { NUser } from '@nostrify/react/login';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,16 +9,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useDefaultRelay } from '@/hooks/useDefaultRelay';
-import { useRemoteNostrJson } from '@/hooks/useRemoteNostrJson';
 import { useAuthor } from '@/hooks/useAuthor';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Edit, Trash2, Calendar, MapPin, Share2, Eye, Layout, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, Calendar, MapPin, Share2, Eye, Layout, Search, ExternalLink } from 'lucide-react';
 import { AuthorInfo } from '@/components/AuthorInfo';
 import { useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Link } from 'react-router-dom';
 
 interface MeetupEvent {
   id: string;
@@ -36,7 +37,7 @@ interface MeetupEvent {
 
 function EventCard({ event, user, usernameSearch, onEdit, onDelete }: {
   event: MeetupEvent;
-  user: { pubkey: string } | null;
+  user: NUser | undefined;
   usernameSearch: string;
   onEdit: (event: MeetupEvent) => void;
   onDelete: (event: MeetupEvent) => void;
@@ -60,6 +61,7 @@ function EventCard({ event, user, usernameSearch, onEdit, onDelete }: {
           <div className="space-y-2 flex-1">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-semibold">{event.title}</h3>
+              <Badge variant="outline" className="text-[10px] font-mono">Kind {event.kind}</Badge>
               <Badge variant={isEventPast ? 'secondary' : 'default'}>
                 {isEventPast ? 'Past' : 'Upcoming'}
               </Badge>
@@ -96,6 +98,11 @@ function EventCard({ event, user, usernameSearch, onEdit, onDelete }: {
           </div>
           
           <div className="flex gap-2 ml-4">
+            <Button variant="ghost" size="sm" asChild>
+              <Link to={`/event/${event.id}`} title="View public event">
+                <ExternalLink className="h-4 w-4" />
+              </Link>
+            </Button>
             {user && event.pubkey === user.pubkey && (
               <>
                 <Button variant="ghost" size="sm" onClick={() => onEdit(event)}>
@@ -117,7 +124,6 @@ export default function AdminEvents() {
   const { nostr, publishRelays: initialPublishRelays } = useDefaultRelay();
   const { user } = useCurrentUser();
   const { mutate: publishEvent } = useNostrPublish();
-  const { data: remoteNostrJson } = useRemoteNostrJson();
   const [isCreating, setIsCreating] = useState(false);
   const [editingEvent, setEditingEvent] = useState<MeetupEvent | null>(null);
   const [eventType, setEventType] = useState<'date' | 'time'>('time');
@@ -351,10 +357,6 @@ export default function AdminEvents() {
       });
       refetch();
     }
-  };
-
-  const isEventPast = (event: MeetupEvent) => {
-    return event.end ? event.end * 1000 < Date.now() : event.start * 1000 < Date.now();
   };
 
   return (
