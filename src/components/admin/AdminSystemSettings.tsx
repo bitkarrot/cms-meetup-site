@@ -306,12 +306,31 @@ export default function AdminSystemSettings() {
   };
 
   const handleResetToDefaults = async () => {
-    if (window.confirm('Are you sure you want to reset all settings to defaults? This will clear all local storage, cached data, and republish the default configuration to the relay. You will be logged out and the site will return to its original environment variable state.')) {
+    if (window.confirm('Are you sure you want to reset all settings to defaults? This will clear all local storage, cached data, delete relay metadata, and republish the default configuration to the relay. You will be logged out and the site will return to its original environment variable state.')) {
       try {
         // Get default values from environment variables
         const envDefaultRelay = import.meta.env.VITE_DEFAULT_RELAY;
         
-        // Publish Kind 30078 with default values (blanked out except for default relay)
+        // 1. Delete NIP-65 relay list (kind 10002) from the relay
+        if (user) {
+          try {
+            await publishEvent({
+              event: {
+                kind: 5,
+                content: "Resetting relay metadata to defaults",
+                tags: [
+                  ['k', '10002'],
+                  ['alt', 'Delete relay list metadata']
+                ]
+              }
+            });
+            console.log('[handleResetToDefaults] Relay metadata deletion event published');
+          } catch (e) {
+            console.error('[handleResetToDefaults] Failed to delete relay metadata:', e);
+          }
+        }
+        
+        // 2. Publish Kind 30078 with default values (blanked out except for default relay)
         const defaultConfigTags = [
           ['d', 'nostr-meetup-site-config'],
           ['title', 'My Meetup Site'],
@@ -352,6 +371,7 @@ export default function AdminSystemSettings() {
         console.error('[handleResetToDefaults] Failed to republish default config:', e);
       }
 
+      // 3. Clear localStorage and cache
       localStorage.clear();
       queryClient.clear();
       window.location.href = '/';

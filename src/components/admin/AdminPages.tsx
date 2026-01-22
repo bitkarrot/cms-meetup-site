@@ -25,6 +25,7 @@ interface StaticPage {
   sha256: string;
   created_at: number;
   pubkey: string;
+  relays: string[];
 }
 
 export default function AdminPages() {
@@ -50,6 +51,8 @@ export default function AdminPages() {
 
   const { data: pages, refetch } = useQuery({
     queryKey: ['admin-static-pages'],
+    staleTime: 0,
+    gcTime: 0,
     queryFn: async () => {
       const signal = AbortSignal.timeout(5000);
       const events = await nostr.query([
@@ -58,6 +61,7 @@ export default function AdminPages() {
       
       return events.map(event => {
         const tags = event.tags || [];
+        const relayTags = tags.filter(([name]) => name === 'relay').map(([_, url]) => url);
         return {
           id: event.id,
           path: tags.find(([name]) => name === 'd')?.[1] || '',
@@ -65,6 +69,7 @@ export default function AdminPages() {
           content: event.content, // Fallback or summary content
           created_at: event.created_at,
           pubkey: event.pubkey,
+          relays: relayTags,
         };
       }).filter(p => p.path);
     },
@@ -101,6 +106,7 @@ export default function AdminPages() {
         ['d', formData.path.startsWith('/') ? formData.path : `/${formData.path}`],
         ['sha256', sha256],
         ['alt', `Static page for ${formData.path}`],
+        ...selectedRelays.map(relay => ['relay', relay]),
       ];
 
       publishEvent({
@@ -309,6 +315,16 @@ export default function AdminPages() {
                   <p className="text-xs text-muted-foreground">
                     Created: {new Date(page.created_at * 1000).toLocaleDateString()}
                   </p>
+                  {page.relays && page.relays.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      <span className="text-xs text-muted-foreground mr-1">Published to:</span>
+                      {page.relays.map((relay) => (
+                        <Badge key={relay} variant="secondary" className="text-xs font-mono">
+                          {relay.replace('wss://', '').replace('ws://', '')}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2 ml-4">
                   <Button variant="ghost" size="sm" asChild title="View Page">
