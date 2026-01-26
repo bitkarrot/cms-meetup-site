@@ -63,6 +63,7 @@ interface SiteConfig {
   publishRelays: string[];
   adminRoles: Record<string, 'primary' | 'secondary'>;
   tweakcnThemeUrl?: string;
+  sectionOrder?: string[];
   updatedAt?: number;
 }
 
@@ -181,6 +182,48 @@ function SortableNavItem({ item, navigation, onUpdate, onRemove }: SortableNavIt
   );
 }
 
+interface SortableSectionProps {
+  id: string;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}
+
+function SortableSection({ id, title, description, children }: SortableSectionProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 'auto',
+    position: 'relative' as const,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={cn(isDragging && "opacity-50")}>
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between space-y-0">
+          <div className="space-y-1.5">
+            <CardTitle>{title}</CardTitle>
+            {description && <CardDescription>{description}</CardDescription>}
+          </div>
+          <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-2 -mr-2 rounded-md hover:bg-muted text-muted-foreground transition-colors">
+            <GripVertical className="h-5 w-5" />
+          </div>
+        </CardHeader>
+        {children}
+      </Card>
+    </div>
+  );
+}
+
 export default function AdminSettings() {
   const { config, updateConfig } = useAppContext();
   const { mutateAsync: publishEvent } = useNostrPublish();
@@ -227,6 +270,7 @@ export default function AdminSettings() {
     ].filter(Boolean),
     adminRoles: config.siteConfig?.adminRoles ?? {},
     tweakcnThemeUrl: config.siteConfig?.tweakcnThemeUrl ?? '',
+    sectionOrder: config.siteConfig?.sectionOrder ?? ['navigation', 'basic', 'styling', 'hero', 'content'],
   }));
 
   const isDirty = useMemo(() => {
@@ -244,7 +288,8 @@ export default function AdminSettings() {
       siteConfig.maxEvents !== (originalConfig.maxEvents ?? 6) ||
       siteConfig.maxBlogPosts !== (originalConfig.maxBlogPosts ?? 3) ||
       siteConfig.defaultRelay !== (originalConfig.defaultRelay ?? import.meta.env.VITE_DEFAULT_RELAY) ||
-      siteConfig.tweakcnThemeUrl !== (originalConfig.tweakcnThemeUrl ?? '');
+      siteConfig.tweakcnThemeUrl !== (originalConfig.tweakcnThemeUrl ?? '') ||
+      JSON.stringify(siteConfig.sectionOrder) !== JSON.stringify(originalConfig.sectionOrder ?? ['navigation', 'basic', 'styling', 'hero', 'content']);
 
     const hasNavChanged = JSON.stringify(navigation) !== JSON.stringify(config.navigation || [
       { id: '1', name: 'Home', href: '/', isSubmenu: false },
@@ -373,6 +418,22 @@ export default function AdminSettings() {
     }
   };
 
+  const handleSectionDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setSiteConfig((prev) => {
+        const order = prev.sectionOrder || ['navigation', 'basic', 'styling', 'hero', 'content'];
+        const oldIndex = order.indexOf(active.id as string);
+        const newIndex = order.indexOf(over.id as string);
+        return {
+          ...prev,
+          sectionOrder: arrayMove(order, oldIndex, newIndex),
+        };
+      });
+    }
+  };
+
   if (!isMasterUser) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
@@ -414,7 +475,8 @@ export default function AdminSettings() {
           heroSubtitle: 'hero_subtitle',
           heroBackground: 'hero_background',
           defaultRelay: 'default_relay',
-          tweakcnThemeUrl: 'tweakcn_theme_url'
+          tweakcnThemeUrl: 'tweakcn_theme_url',
+          sectionOrder: 'section_order'
         };
 
         const eventTags = event.tags || [];
@@ -460,6 +522,16 @@ export default function AdminSettings() {
             if (parsed && typeof parsed === 'object') loadedConfig.adminRoles = parsed;
           } catch (e) {
             console.error('Failed to parse admin_roles tag', e);
+          }
+        }
+
+        const sectionOrderTag = eventTags.find(([name]) => name === 'section_order')?.[1];
+        if (sectionOrderTag) {
+          try {
+            const parsed = JSON.parse(sectionOrderTag);
+            if (Array.isArray(parsed)) loadedConfig.sectionOrder = parsed;
+          } catch (e) {
+            console.error('Failed to parse section_order tag', e);
           }
         }
 
@@ -527,6 +599,7 @@ export default function AdminSettings() {
         ['publish_relays', JSON.stringify(filteredRelays)],
         ['admin_roles', JSON.stringify(siteConfig.adminRoles)],
         ['tweakcn_theme_url', siteConfig.tweakcnThemeUrl || ''],
+        ['section_order', JSON.stringify(siteConfig.sectionOrder)],
         ['updated_at', Math.floor(Date.now() / 1000).toString()],
       ];
 
@@ -601,294 +674,305 @@ export default function AdminSettings() {
         </div>
       </div>
 
-      {/* Basic Site Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Basic Information</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="title">Site Title</Label>
-              <Input
-                id="title"
-                value={siteConfig.title}
-                onChange={(e) => setSiteConfig(prev => ({ ...prev, title: e.target.value }))}
-                placeholder="My Meetup Site"
-              />
-            </div>
-            <div>
-              <Label htmlFor="logo">Logo URL</Label>
-              <Input
-                id="logo"
-                value={siteConfig.logo}
-                onChange={(e) => setSiteConfig(prev => ({ ...prev, logo: e.target.value }))}
-                placeholder="https://..."
-              />
-            </div>
-            <div>
-              <Label htmlFor="favicon">Favicon URL</Label>
-              <Input
-                id="favicon"
-                value={siteConfig.favicon}
-                onChange={(e) => setSiteConfig(prev => ({ ...prev, favicon: e.target.value }))}
-                placeholder="https://..."
-              />
-            </div>
-            <div>
-              <Label htmlFor="ogImage">Open Graph Image URL</Label>
-              <Input
-                id="ogImage"
-                value={siteConfig.ogImage}
-                onChange={(e) => setSiteConfig(prev => ({ ...prev, ogImage: e.target.value }))}
-                placeholder="https://..."
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleSectionDragEnd}
+      >
+        <SortableContext
+          items={siteConfig.sectionOrder || ['navigation', 'basic', 'styling', 'hero', 'content']}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="space-y-6">
+            {(siteConfig.sectionOrder || ['navigation', 'basic', 'styling', 'hero', 'content']).map((sectionId) => {
+              switch (sectionId) {
+                case 'basic':
+                  return (
+                    <SortableSection key="basic" id="basic" title="Basic Information">
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="title">Site Title</Label>
+                            <Input
+                              id="title"
+                              value={siteConfig.title}
+                              onChange={(e) => setSiteConfig(prev => ({ ...prev, title: e.target.value }))}
+                              placeholder="My Meetup Site"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="logo">Logo URL</Label>
+                            <Input
+                              id="logo"
+                              value={siteConfig.logo}
+                              onChange={(e) => setSiteConfig(prev => ({ ...prev, logo: e.target.value }))}
+                              placeholder="https://..."
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="favicon">Favicon URL</Label>
+                            <Input
+                              id="favicon"
+                              value={siteConfig.favicon}
+                              onChange={(e) => setSiteConfig(prev => ({ ...prev, favicon: e.target.value }))}
+                              placeholder="https://..."
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="ogImage">Open Graph Image URL</Label>
+                            <Input
+                              id="ogImage"
+                              value={siteConfig.ogImage}
+                              onChange={(e) => setSiteConfig(prev => ({ ...prev, ogImage: e.target.value }))}
+                              placeholder="https://..."
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </SortableSection>
+                  );
+                case 'styling':
+                  return (
+                    <SortableSection 
+                      key="styling" 
+                      id="styling" 
+                      title="Site Styling (TweakCN)"
+                      description="TweakCN is a powerful theme engine that allows you to customize the visual appearance of your site using a simple JSON configuration."
+                    >
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Select a Preset Theme</Label>
+                          <div className="flex gap-2">
+                            <Select
+                              value={TWEAKCN_THEMES.find(t => t.url === siteConfig.tweakcnThemeUrl)?.url ?? 'none'}
+                              onValueChange={(url) => {
+                                setSiteConfig(prev => ({ ...prev, tweakcnThemeUrl: url === 'none' ? '' : url }));
+                                setPreviewThemeUrl(null); // Clear preview when selection changes
+                              }}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select a theme" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {TWEAKCN_THEMES.map((theme) => (
+                                  <SelectItem key={theme.name} value={theme.url}>
+                                    {theme.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {siteConfig.tweakcnThemeUrl && TWEAKCN_THEMES.some(t => t.url === siteConfig.tweakcnThemeUrl) && (
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                title="Preview Theme"
+                                onClick={() => {
+                                  setPreviewThemeUrl(siteConfig.tweakcnThemeUrl || null);
+                                  toast({
+                                    title: "Theme Preview",
+                                    description: "Previewing selected theme. Save changes to apply permanently.",
+                                  });
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
 
-      {/* TweakCN Theme Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Site Styling (TweakCN)</CardTitle>
-          <CardDescription>
-            <a href="https://tweakcn.com/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">TweakCN</a> is a powerful theme engine that allows you to customize the visual appearance of your site using a simple JSON configuration.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Select a Preset Theme</Label>
-            <div className="flex gap-2">
-              <Select
-                value={TWEAKCN_THEMES.find(t => t.url === siteConfig.tweakcnThemeUrl)?.url ?? 'none'}
-                onValueChange={(url) => {
-                  setSiteConfig(prev => ({ ...prev, tweakcnThemeUrl: url === 'none' ? '' : url }));
-                  setPreviewThemeUrl(null); // Clear preview when selection changes
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a theme" />
-                </SelectTrigger>
-                <SelectContent>
-                  {TWEAKCN_THEMES.map((theme) => (
-                    <SelectItem key={theme.name} value={theme.url}>
-                      {theme.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {siteConfig.tweakcnThemeUrl && TWEAKCN_THEMES.some(t => t.url === siteConfig.tweakcnThemeUrl) && (
-                <Button
-                  variant="outline"
-                  size="icon"
-                  title="Preview Theme"
-                  onClick={() => {
-                    setPreviewThemeUrl(siteConfig.tweakcnThemeUrl || null);
-                    toast({
-                      title: "Theme Preview",
-                      description: "Previewing selected theme. Save changes to apply permanently.",
-                    });
-                  }}
-                >
-                  <Eye className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </div>
+                        <Separator />
 
-          <Separator />
+                        <div className="space-y-2">
+                          <Label htmlFor="customThemeUrl">Custom TweakCN Theme URL</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              id="customThemeUrl"
+                              value={siteConfig.tweakcnThemeUrl}
+                              onChange={(e) => {
+                                setSiteConfig(prev => ({ ...prev, tweakcnThemeUrl: e.target.value }));
+                                setPreviewThemeUrl(null);
+                              }}
+                              placeholder="https://tweakcn.com/r/themes/..."
+                            />
+                            <div className="flex gap-1">
+                              {siteConfig.tweakcnThemeUrl && (
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  title="Preview Custom Theme"
+                                  onClick={() => {
+                                    if (siteConfig.tweakcnThemeUrl) {
+                                      setPreviewThemeUrl(siteConfig.tweakcnThemeUrl);
+                                      toast({
+                                        title: "Custom Theme Preview",
+                                        description: "Previewing custom theme. Save changes to apply permanently.",
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              )}
+                              {siteConfig.tweakcnThemeUrl && !TWEAKCN_THEMES.some(t => t.url === siteConfig.tweakcnThemeUrl) && (
+                                <Button
+                                  variant="outline"
+                                  onClick={() => {
+                                    setSiteConfig(prev => ({ ...prev, tweakcnThemeUrl: '' }));
+                                    setPreviewThemeUrl(null);
+                                  }}
+                                >
+                                  Clear
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Enter a direct link to a <a href="https://tweakcn.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">TweakCN</a> theme JSON file to apply custom styling.
+                          </p>
+                        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="customThemeUrl">Custom TweakCN Theme URL</Label>
-            <div className="flex gap-2">
-              <Input
-                id="customThemeUrl"
-                value={siteConfig.tweakcnThemeUrl}
-                onChange={(e) => {
-                  setSiteConfig(prev => ({ ...prev, tweakcnThemeUrl: e.target.value }));
-                  setPreviewThemeUrl(null);
-                }}
-                placeholder="https://tweakcn.com/r/themes/..."
-              />
-              <div className="flex gap-1">
-                {siteConfig.tweakcnThemeUrl && (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    title="Preview Custom Theme"
-                    onClick={() => {
-                      if (siteConfig.tweakcnThemeUrl) {
-                        setPreviewThemeUrl(siteConfig.tweakcnThemeUrl);
-                        toast({
-                          title: "Custom Theme Preview",
-                          description: "Previewing custom theme. Save changes to apply permanently.",
-                        });
-                      }
-                    }}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                )}
-                {siteConfig.tweakcnThemeUrl && !TWEAKCN_THEMES.some(t => t.url === siteConfig.tweakcnThemeUrl) && (
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSiteConfig(prev => ({ ...prev, tweakcnThemeUrl: '' }));
-                      setPreviewThemeUrl(null);
-                    }}
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Enter a direct link to a <a href="https://tweakcn.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">TweakCN</a> theme JSON file to apply custom styling.
-            </p>
-          </div>
+                        {isDirty && (
+                          <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 rounded-md text-sm border border-yellow-200 dark:border-yellow-900/30">
+                            <AlertCircle className="h-4 w-4" />
+                            <span>You have unsaved changes. Remember to save before navigating away.</span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </SortableSection>
+                  );
+                case 'hero':
+                  return (
+                    <SortableSection key="hero" id="hero" title="Hero Section">
+                      <CardContent className="space-y-4">
+                        <div>
+                          <Label htmlFor="heroTitle">Hero Title</Label>
+                          <Input
+                            id="heroTitle"
+                            value={siteConfig.heroTitle}
+                            onChange={(e) => setSiteConfig(prev => ({ ...prev, heroTitle: e.target.value }))}
+                            placeholder="Welcome to Our Community"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="heroSubtitle">Hero Subtitle</Label>
+                          <Input
+                            id="heroSubtitle"
+                            value={siteConfig.heroSubtitle}
+                            onChange={(e) => setSiteConfig(prev => ({ ...prev, heroSubtitle: e.target.value }))}
+                            placeholder="Join us for amazing meetups and events"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="heroBackground">Hero Background Image URL</Label>
+                          <Input
+                            id="heroBackground"
+                            value={siteConfig.heroBackground}
+                            onChange={(e) => setSiteConfig(prev => ({ ...prev, heroBackground: e.target.value }))}
+                            placeholder="https://..."
+                          />
+                        </div>
+                      </CardContent>
+                    </SortableSection>
+                  );
+                case 'content':
+                  return (
+                    <SortableSection key="content" id="content" title="Content Display">
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label>Show Events on Homepage</Label>
+                            <p className="text-sm text-muted-foreground">Display upcoming events on the home page</p>
+                          </div>
+                          <Switch
+                            checked={siteConfig.showEvents}
+                            onCheckedChange={(checked) => setSiteConfig(prev => ({ ...prev, showEvents: checked }))}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label>Show Blog Posts on Homepage</Label>
+                            <p className="text-sm text-muted-foreground">Display recent blog posts on home page</p>
+                          </div>
+                          <Switch
+                            checked={siteConfig.showBlog}
+                            onCheckedChange={(checked) => setSiteConfig(prev => ({ ...prev, showBlog: checked }))}
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="maxEvents">Maximum Events to Show</Label>
+                            <Input
+                              id="maxEvents"
+                              type="number"
+                              value={siteConfig.maxEvents}
+                              onChange={(e) => setSiteConfig(prev => ({ ...prev, maxEvents: parseInt(e.target.value) || 6 }))}
+                              min="1"
+                              max="20"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="maxBlogPosts">Maximum Blog Posts to Show</Label>
+                            <Input
+                              id="maxBlogPosts"
+                              type="number"
+                              value={siteConfig.maxBlogPosts}
+                              onChange={(e) => setSiteConfig(prev => ({ ...prev, maxBlogPosts: parseInt(e.target.value) || 3 }))}
+                              min="1"
+                              max="20"
+                            />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </SortableSection>
+                  );
+                case 'navigation':
+                  return (
+                    <SortableSection key="navigation" id="navigation" title="Navigation Menu">
+                      <CardContent className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Label>Main Navigation</Label>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => addNavigationItem()}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Item
+                          </Button>
+                        </div>
 
-          {isDirty && (
-            <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 rounded-md text-sm border border-yellow-200 dark:border-yellow-900/30">
-              <AlertCircle className="h-4 w-4" />
-              <span>You have unsaved changes. Remember to save before navigating away.</span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Hero Section Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Hero Section</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="heroTitle">Hero Title</Label>
-            <Input
-              id="heroTitle"
-              value={siteConfig.heroTitle}
-              onChange={(e) => setSiteConfig(prev => ({ ...prev, heroTitle: e.target.value }))}
-              placeholder="Welcome to Our Community"
-            />
+                        <div className="space-y-4">
+                          <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleDragEnd}
+                          >
+                            <SortableContext
+                              items={navigation.map(i => i.id)}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              {navigation.map((item) => (
+                                <SortableNavItem
+                                  key={item.id}
+                                  item={item}
+                                  navigation={navigation}
+                                  onUpdate={updateNavigationItem}
+                                  onRemove={removeNavigationItem}
+                                />
+                              ))}
+                            </SortableContext>
+                          </DndContext>
+                        </div>
+                      </CardContent>
+                    </SortableSection>
+                  );
+                default:
+                  return null;
+              }
+            })}
           </div>
-          <div>
-            <Label htmlFor="heroSubtitle">Hero Subtitle</Label>
-            <Input
-              id="heroSubtitle"
-              value={siteConfig.heroSubtitle}
-              onChange={(e) => setSiteConfig(prev => ({ ...prev, heroSubtitle: e.target.value }))}
-              placeholder="Join us for amazing meetups and events"
-            />
-          </div>
-          <div>
-            <Label htmlFor="heroBackground">Hero Background Image URL</Label>
-            <Input
-              id="heroBackground"
-              value={siteConfig.heroBackground}
-              onChange={(e) => setSiteConfig(prev => ({ ...prev, heroBackground: e.target.value }))}
-              placeholder="https://..."
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Content Display Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Content Display</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>Show Events on Homepage</Label>
-              <p className="text-sm text-muted-foreground">Display upcoming events on the home page</p>
-            </div>
-            <Switch
-              checked={siteConfig.showEvents}
-              onCheckedChange={(checked) => setSiteConfig(prev => ({ ...prev, showEvents: checked }))}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>Show Blog Posts on Homepage</Label>
-              <p className="text-sm text-muted-foreground">Display recent blog posts on home page</p>
-            </div>
-            <Switch
-              checked={siteConfig.showBlog}
-              onCheckedChange={(checked) => setSiteConfig(prev => ({ ...prev, showBlog: checked }))}
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="maxEvents">Maximum Events to Show</Label>
-              <Input
-                id="maxEvents"
-                type="number"
-                value={siteConfig.maxEvents}
-                onChange={(e) => setSiteConfig(prev => ({ ...prev, maxEvents: parseInt(e.target.value) || 6 }))}
-                min="1"
-                max="20"
-              />
-            </div>
-            <div>
-              <Label htmlFor="maxBlogPosts">Maximum Blog Posts to Show</Label>
-              <Input
-                id="maxBlogPosts"
-                type="number"
-                value={siteConfig.maxBlogPosts}
-                onChange={(e) => setSiteConfig(prev => ({ ...prev, maxBlogPosts: parseInt(e.target.value) || 3 }))}
-                min="1"
-                max="20"
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Navigation Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Navigation Menu</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label>Main Navigation</Label>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => addNavigationItem()}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Item
-            </Button>
-          </div>
-
-          <div className="space-y-4">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={navigation.map(i => i.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                {navigation.map((item) => (
-                  <SortableNavItem
-                    key={item.id}
-                    item={item}
-                    navigation={navigation}
-                    onUpdate={updateNavigationItem}
-                    onRemove={removeNavigationItem}
-                  />
-                ))}
-              </SortableContext>
-            </DndContext>
-          </div>
-
-        </CardContent>
-      </Card>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 }

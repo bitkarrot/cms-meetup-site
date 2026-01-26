@@ -35,6 +35,8 @@ export interface AppConfig {
     adminRoles?: Record<string, 'primary' | 'secondary'>;
     /** TweakCN theme URL */
     tweakcnThemeUrl?: string;
+    /** Order of settings sections */
+    sectionOrder?: string[];
     /** Last time the site config was updated from/to Nostr */
     updatedAt?: number;
   };
