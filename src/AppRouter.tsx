@@ -11,6 +11,7 @@ import AdminPage from "./pages/admin/AdminPage";
 import AdminBlogPage from "./pages/admin/AdminBlogPage";
 import AdminEventsPage from "./pages/admin/AdminEventsPage";
 import AdminFeedPage from "./pages/admin/AdminFeedPage";
+import AdminZaplyticsPage from "./pages/admin/AdminZaplyticsPage";
 import AdminPagesPage from "./pages/admin/AdminPagesPage";
 import AdminSettingsPage from "./pages/admin/AdminSettingsPage";
 import AdminSystemSettingsPage from "./pages/admin/AdminSystemSettingsPage";
@@ -56,6 +57,7 @@ export function AppRouter() {
           <Route path="blog" element={<AdminBlogPage />} />
           <Route path="events" element={<AdminEventsPage />} />
           <Route path="feed" element={<AdminFeedPage />} />
+          <Route path="zaplytics" element={<AdminZaplyticsPage />} />
           <Route path="pages" element={<AdminPagesPage />} />
           <Route path="settings" element={<AdminSettingsPage />} />
           <Route path="system-settings" element={<AdminSystemSettingsPage />} />
