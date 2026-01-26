@@ -1,7 +1,5 @@
-import AdminZaplytics from "@/components/admin/AdminZaplytics";
+import AdminZaplytics from '../../components/admin/AdminZaplytics';
 
-const AdminZaplyticsPage = () => {
+export default function AdminZaplyticsPage() {
   return <AdminZaplytics />;
-};
-
-export default AdminZaplyticsPage;
+}

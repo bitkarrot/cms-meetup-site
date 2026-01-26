@@ -33,3 +33,4 @@ yarn.lock
 !.env.example
 .env*.local
 .trunk
+zaplytics
