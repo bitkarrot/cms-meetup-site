@@ -5,7 +5,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { AlertCircle, Save, Rss, Plus, Trash2, UserPlus } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertCircle, Save, Rss, Trash2, UserPlus } from 'lucide-react';
 import { useAppContext } from '@/hooks/useAppContext';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useQueryClient } from '@tanstack/react-query';
@@ -13,6 +14,64 @@ import { useToast } from '@/hooks/useToast';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useRemoteNostrJson } from '@/hooks/useRemoteNostrJson';
 import { formatPubkey } from '@/lib/utils';
+import { useAuthor } from '@/hooks/useAuthor';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { User } from 'lucide-react';
+
+function FeedSourceItem({ npub, onRemove }: { npub: string; onRemove: (npub: string) => void }) {
+  const { data } = useAuthor(npub);
+  const metadata = data?.metadata;
+  
+  return (
+    <div className="flex items-center justify-between p-3 bg-card/50">
+      <div className="flex items-center gap-3 overflow-hidden mr-2">
+        <Avatar className="h-8 w-8 shrink-0">
+          <AvatarImage src={metadata?.picture} alt={metadata?.name || npub} />
+          <AvatarFallback>
+            <User className="h-4 w-4" />
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex flex-col overflow-hidden">
+          <span className="text-sm font-medium truncate">
+            {metadata?.name || metadata?.display_name || 'Anonymous'}
+          </span>
+          <span className="text-xs text-muted-foreground font-mono truncate">
+            {formatPubkey(npub)}
+          </span>
+        </div>
+      </div>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => onRemove(npub)}
+      >
+        <Trash2 className="h-4 w-4 text-destructive" />
+      </Button>
+    </div>
+  );
+}
+
+function DirectorySelectItem({ name, pubkey }: { name: string; pubkey: string }) {
+  const { data } = useAuthor(pubkey);
+  const metadata = data?.metadata;
+
+  return (
+    <div className="flex items-center gap-3">
+      <Avatar className="h-6 w-6 shrink-0">
+        <AvatarImage src={metadata?.picture} alt={metadata?.name || name} />
+        <AvatarFallback>
+          <User className="h-3 w-3" />
+        </AvatarFallback>
+      </Avatar>
+      <div className="flex flex-col">
+        <span className="font-medium text-sm">{name}</span>
+        <span className="text-[10px] text-muted-foreground font-mono">
+          {formatPubkey(pubkey)}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminFeed() {
   const { config, updateConfig } = useAppContext();
@@ -131,30 +190,33 @@ export default function AdminFeed() {
               <CardDescription>
                 Select users from your community directory to add to the feed.
               </CardDescription>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {remoteNostrJson?.names && Object.entries(remoteNostrJson.names).map(([name, pubkey]) => {
-                  const isAdded = feedNpubs.includes(pubkey);
-                  return (
-                    <Button
-                      key={pubkey}
-                      variant="outline"
-                      size="sm"
-                      className="justify-start gap-2 h-auto py-2"
-                      disabled={isAdded}
-                      onClick={() => {
-                        if (!isAdded) {
-                          setFeedNpubs(prev => [...prev, pubkey]);
-                        }
-                      }}
-                    >
-                      <Plus className="h-4 w-4" />
-                      <div className="flex flex-col items-start overflow-hidden text-left">
-                        <span className="font-medium truncate w-full">{name}</span>
-                        <span className="text-[10px] text-muted-foreground truncate w-full">{pubkey}</span>
+              <div className="flex gap-2">
+                <Select
+                  onValueChange={(pubkey) => {
+                    if (pubkey && !feedNpubs.includes(pubkey)) {
+                      setFeedNpubs(prev => [...prev, pubkey]);
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a user to add..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {remoteNostrJson?.names && Object.entries(remoteNostrJson.names)
+                      .filter(([_, pubkey]) => !feedNpubs.includes(pubkey as string))
+                      .map(([name, pubkey]) => (
+                        <SelectItem key={pubkey as string} value={pubkey as string}>
+                          <DirectorySelectItem name={name} pubkey={pubkey as string} />
+                        </SelectItem>
+                      ))}
+                    {(!remoteNostrJson?.names || 
+                      Object.entries(remoteNostrJson.names).filter(([_, pubkey]) => !feedNpubs.includes(pubkey as string)).length === 0) && (
+                      <div className="p-2 text-sm text-muted-foreground text-center">
+                        No more users to add from directory.
                       </div>
-                    </Button>
-                  );
-                })}
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -190,27 +252,18 @@ export default function AdminFeed() {
 
             <div className="space-y-2">
               <Label>Current Feed Sources</Label>
-              <div className="border rounded-md divide-y max-h-[300px] overflow-y-auto">
+              <div className="border rounded-md divide-y max-h-[400px] overflow-y-auto">
                 {feedNpubs.length === 0 ? (
                   <div className="p-4 text-center text-sm text-muted-foreground">
                     No feed sources added yet.
                   </div>
                 ) : (
                   feedNpubs.map((npub) => (
-                    <div key={npub} className="flex items-center justify-between p-3 bg-card/50">
-                      <div className="flex flex-col overflow-hidden mr-2">
-                        <span className="text-sm font-mono truncate">{formatPubkey(npub)}</span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setFeedNpubs(prev => prev.filter(n => n !== npub));
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
+                    <FeedSourceItem 
+                      key={npub} 
+                      npub={npub} 
+                      onRemove={(n) => setFeedNpubs(prev => prev.filter(item => item !== n))} 
+                    />
                   ))
                 )}
               </div>
