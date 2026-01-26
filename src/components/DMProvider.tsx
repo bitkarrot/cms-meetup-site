@@ -237,11 +237,15 @@ export function DMProvider({ children, config }: DMProviderProps) {
       ];
 
       // Create and publish the event
-      return await createEvent({
-        kind: 4,
-        content: encryptedContent,
-        tags,
+      const event = await createEvent({
+        event: {
+          kind: 4,
+          content: encryptedContent,
+          tags,
+        }
       });
+
+      return event;
     },
     onError: (error) => {
       console.error('[DM] Failed to send NIP-04 message:', error);

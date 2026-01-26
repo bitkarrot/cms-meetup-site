@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useDefaultRelay } from '@/hooks/useDefaultRelay';
 import ReactMarkdown from 'react-markdown';
@@ -13,7 +13,6 @@ import { nip19 } from 'nostr-tools';
 export default function StaticPage({ pathOverride }: { pathOverride?: string }) {
   const { config: appContext } = useAppContext();
   const { path } = useParams<{ path: string }>();
-  const navigate = useNavigate();
   const { nostr: defaultRelay } = useDefaultRelay();
   const [content, setContent] = useState<string | null>(null);
   const fullPath = pathOverride || `/${path}`;
@@ -128,16 +127,6 @@ export default function StaticPage({ pathOverride }: { pathOverride?: string }) 
   }
 
   if (!pageEvent && !isEventLoading) {
-    // If it's a NIP-19 identifier, let's redirect or let AppRouter handle it
-    const isNip19 = !pathOverride && path && /^(npub1|nprofile1|note1|nevent1|naddr1)/.test(path);
-    
-    if (isNip19) {
-      // Return null and let React Router continue matching if possible, 
-      // but in Routes it will stop here. So we should probably navigate.
-      navigate(`/${path}`, { replace: true });
-      return null;
-    }
-
     return (
       <div className="min-h-screen bg-background">
         <Navigation />

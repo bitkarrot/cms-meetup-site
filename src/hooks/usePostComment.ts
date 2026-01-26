@@ -75,9 +75,11 @@ export function usePostComment() {
       }
 
       const event = await publishEvent({
-        kind: 1111,
-        content,
-        tags,
+        event: {
+          kind: 1111,
+          content,
+          tags,
+        }
       });
 
       return event;

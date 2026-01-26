@@ -102,8 +102,10 @@ export const EditProfileForm: React.FC = () => {
 
       // Publish the metadata event (kind 0)
       await publishEvent({
-        kind: 0,
-        content: JSON.stringify(data),
+        event: {
+          kind: 0,
+          content: JSON.stringify(data),
+        }
       });
 
       // Invalidate queries to refresh the data

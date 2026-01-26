@@ -17,9 +17,8 @@ import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { Save, Plus, Trash2, GripVertical, RefreshCw, ShieldAlert, Eye, AlertCircle, UserPlus } from 'lucide-react';
-import { useRemoteNostrJson } from '@/hooks/useRemoteNostrJson';
-import { cn, formatPubkey } from '@/lib/utils';
+import { Save, Plus, Trash2, GripVertical, RefreshCw, ShieldAlert, Eye, AlertCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/useToast';
 import {
   DndContext,
@@ -67,6 +66,7 @@ interface SiteConfig {
   adminRoles: Record<string, 'primary' | 'secondary'>;
   tweakcnThemeUrl?: string;
   sectionOrder?: string[];
+  nip19Gateway?: string;
   updatedAt?: number;
 }
 
@@ -239,9 +239,6 @@ export default function AdminSettings() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [previewThemeUrl, setPreviewThemeUrl] = useState<string | null>(null);
 
-  const { data: remoteNostrJson } = useRemoteNostrJson();
-  const [newNpub, setNewNpub] = useState('');
-
   const masterPubkey = (import.meta.env.VITE_MASTER_PUBKEY || '').toLowerCase().trim();
   const isMasterUser = user?.pubkey.toLowerCase().trim() === masterPubkey;
 
@@ -278,7 +275,8 @@ export default function AdminSettings() {
     ].filter(Boolean),
     adminRoles: config.siteConfig?.adminRoles ?? {},
     tweakcnThemeUrl: config.siteConfig?.tweakcnThemeUrl ?? '',
-    sectionOrder: config.siteConfig?.sectionOrder ?? ['navigation', 'basic', 'styling', 'hero', 'content', 'feed'],
+    nip19Gateway: config.siteConfig?.nip19Gateway ?? 'https://nostr.at',
+    sectionOrder: config.siteConfig?.sectionOrder ?? ['navigation', 'basic', 'styling', 'hero', 'content'],
   }));
 
   const isDirty = useMemo(() => {
@@ -299,7 +297,8 @@ export default function AdminSettings() {
       siteConfig.maxBlogPosts !== (originalConfig.maxBlogPosts ?? 3) ||
       siteConfig.defaultRelay !== (originalConfig.defaultRelay ?? import.meta.env.VITE_DEFAULT_RELAY) ||
       siteConfig.tweakcnThemeUrl !== (originalConfig.tweakcnThemeUrl ?? '') ||
-      JSON.stringify(siteConfig.sectionOrder) !== JSON.stringify(originalConfig.sectionOrder ?? ['navigation', 'basic', 'styling', 'hero', 'content', 'feed']);
+      siteConfig.nip19Gateway !== (originalConfig.nip19Gateway ?? 'https://nostr.at') ||
+      JSON.stringify(siteConfig.sectionOrder) !== JSON.stringify(originalConfig.sectionOrder ?? ['navigation', 'basic', 'styling', 'hero', 'content']);
 
     const hasNavChanged = JSON.stringify(navigation) !== JSON.stringify(config.navigation || [
       { id: '2', name: 'Events', href: '/events', isSubmenu: false },
@@ -486,6 +485,7 @@ export default function AdminSettings() {
           heroBackground: 'hero_background',
           defaultRelay: 'default_relay',
           tweakcnThemeUrl: 'tweakcn_theme_url',
+          nip19Gateway: 'nip19_gateway',
           sectionOrder: 'section_order'
         };
 
@@ -624,6 +624,7 @@ export default function AdminSettings() {
         ['feed_npubs', JSON.stringify(siteConfig.feedNpubs)],
         ['feed_read_from_publish_relays', siteConfig.feedReadFromPublishRelays.toString()],
         ['tweakcn_theme_url', siteConfig.tweakcnThemeUrl || ''],
+        ['nip19_gateway', siteConfig.nip19Gateway || 'https://nostr.at'],
         ['section_order', JSON.stringify(siteConfig.sectionOrder)],
         ['updated_at', Math.floor(Date.now() / 1000).toString()],
       ];
@@ -751,6 +752,26 @@ export default function AdminSettings() {
                               onChange={(e) => setSiteConfig(prev => ({ ...prev, ogImage: e.target.value }))}
                               placeholder="https://..."
                             />
+                          </div>
+                          <div>
+                            <Label htmlFor="nip19Gateway">NIP-19 Gateway URL</Label>
+                            <Select
+                              value={siteConfig.nip19Gateway || 'https://nostr.at'}
+                              onValueChange={(val) => setSiteConfig(prev => ({ ...prev, nip19Gateway: val }))}
+                            >
+                              <SelectTrigger id="nip19Gateway">
+                                <SelectValue placeholder="Select a gateway" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="https://nostr.at">nostr.at</SelectItem>
+                                <SelectItem value="https://njump.me">njump.me</SelectItem>
+                                <SelectItem value="https://habla.news">habla.news</SelectItem>
+                                <SelectItem value="https://primal.net">primal.net</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-[10px] text-muted-foreground mt-1">
+                              External gateway used for viewing Nostr identifiers (npub, note, etc.).
+                            </p>
                           </div>
                         </div>
                       </CardContent>
@@ -946,128 +967,6 @@ export default function AdminSettings() {
                               max="20"
                             />
                           </div>
-                        </div>
-                      </CardContent>
-                    </SortableSection>
-                  );
-                case 'feed':
-                  return (
-                    <SortableSection key="feed" id="feed" title="Feed Settings">
-                      <CardContent className="space-y-6">
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <Label>Add from Directory</Label>
-                            <CardDescription>
-                              Select users from your community directory to add to the feed.
-                            </CardDescription>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {remoteNostrJson?.names && Object.entries(remoteNostrJson.names).map(([name, pubkey]) => {
-                                const isAdded = siteConfig.feedNpubs.includes(pubkey);
-                                return (
-                                  <Button
-                                    key={pubkey}
-                                    variant="outline"
-                                    size="sm"
-                                    className="justify-start gap-2 h-auto py-2"
-                                    disabled={isAdded}
-                                    onClick={() => {
-                                      if (!isAdded) {
-                                        setSiteConfig(prev => ({
-                                          ...prev,
-                                          feedNpubs: [...prev.feedNpubs, pubkey]
-                                        }));
-                                      }
-                                    }}
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                    <div className="flex flex-col items-start overflow-hidden text-left">
-                                      <span className="font-medium truncate w-full">{name}</span>
-                                      <span className="text-[10px] text-muted-foreground truncate w-full">{pubkey}</span>
-                                    </div>
-                                  </Button>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          <Separator />
-
-                          <div className="space-y-2">
-                            <Label htmlFor="manualNpub">Add Manual npub</Label>
-                            <CardDescription>
-                              Add a specific Nostr public key (npub) to the feed sources.
-                            </CardDescription>
-                            <div className="flex gap-2">
-                              <Input
-                                id="manualNpub"
-                                value={newNpub}
-                                onChange={(e) => setNewNpub(e.target.value)}
-                                placeholder="npub1..."
-                                className="flex-1"
-                              />
-                              <Button 
-                                type="button"
-                                onClick={() => {
-                                  if (newNpub.trim()) {
-                                    setSiteConfig(prev => ({
-                                      ...prev,
-                                      feedNpubs: [...new Set([...prev.feedNpubs, newNpub.trim()])]
-                                    }));
-                                    setNewNpub('');
-                                  }
-                                }}
-                              >
-                                <UserPlus className="h-4 w-4 mr-2" />
-                                Add
-                              </Button>
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Current Feed Sources</Label>
-                            <div className="border rounded-md divide-y max-h-[300px] overflow-y-auto">
-                              {siteConfig.feedNpubs.length === 0 ? (
-                                <div className="p-4 text-center text-sm text-muted-foreground">
-                                  No feed sources added yet.
-                                </div>
-                              ) : (
-                                siteConfig.feedNpubs.map((npub) => (
-                                  <div key={npub} className="flex items-center justify-between p-3 bg-card/50">
-                                    <div className="flex flex-col overflow-hidden mr-2 text-left">
-                                      <span className="text-sm font-mono truncate">{formatPubkey(npub)}</span>
-                                    </div>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        setSiteConfig(prev => ({
-                                          ...prev,
-                                          feedNpubs: prev.feedNpubs.filter(n => n !== npub)
-                                        }));
-                                      }}
-                                    >
-                                      <Trash2 className="h-4 w-4 text-destructive" />
-                                    </Button>
-                                  </div>
-                                ))
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <Separator />
-
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-0.5">
-                            <Label>Read from Publishing Relays</Label>
-                            <CardDescription>
-                              If enabled, the feed will also fetch notes from the publishing relays defined below.
-                            </CardDescription>
-                          </div>
-                          <Switch
-                            checked={siteConfig.feedReadFromPublishRelays}
-                            onCheckedChange={(checked) => setSiteConfig(prev => ({ ...prev, feedReadFromPublishRelays: checked }))}
-                          />
                         </div>
                       </CardContent>
                     </SortableSection>

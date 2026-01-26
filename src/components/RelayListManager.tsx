@@ -139,9 +139,11 @@ export function RelayListManager() {
 
     publishEvent(
       {
-        kind: 10002,
-        content: '',
-        tags,
+        event: {
+          kind: 10002,
+          content: '',
+          tags,
+        }
       },
       {
         onSuccess: () => {

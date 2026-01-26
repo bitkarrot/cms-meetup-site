@@ -39,6 +39,8 @@ export interface AppConfig {
     tweakcnThemeUrl?: string;
     /** Order of settings sections */
     sectionOrder?: string[];
+    /** NIP-19 gateway URL (e.g. https://nostr.at or https://njump.me) */
+    nip19Gateway?: string;
     /** Last time the site config was updated from/to Nostr */
     updatedAt?: number;
   };

@@ -131,8 +131,10 @@ const SignupDialog: React.FC<SignupDialogProps> = ({ isOpen, onClose }) => {
         if (profileData.picture) metadata.picture = profileData.picture;
 
         await publishEvent({
-          kind: 0,
-          content: JSON.stringify(metadata),
+          event: {
+            kind: 0,
+            content: JSON.stringify(metadata),
+          }
         });
       }
     } catch {

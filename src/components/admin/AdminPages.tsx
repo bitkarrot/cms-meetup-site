@@ -201,7 +201,6 @@ export default function AdminPages() {
           content: formData.content, // Store markdown/source in content for easy retrieval
           tags,
         },
-        relays: selectedRelays,
       }, {
         onSuccess: () => {
           toast({
@@ -212,6 +211,14 @@ export default function AdminPages() {
           setIsCreating(false);
           setEditingPage(null);
           refetch();
+        },
+        onError: (error) => {
+          console.error('Failed to create page:', error);
+          toast({
+            title: 'Error',
+            description: 'Failed to upload content to Blossom or publish event.',
+            variant: 'destructive',
+          });
         }
       });
     } catch (error) {
@@ -400,7 +407,7 @@ export default function AdminPages() {
           <PageCard
             key={page.id}
             page={page}
-            user={user}
+            user={user || null}
             onEdit={handleEdit}
             onDelete={handleDelete}
           />
