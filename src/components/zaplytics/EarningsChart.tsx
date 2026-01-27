@@ -115,7 +115,7 @@ export function EarningsChart({ data, timeRange, customRange, isLoading }: Earni
                 <Tooltip content={<CustomTooltip />} />
                 <Bar 
                   dataKey="totalSats" 
-                  fill="hsl(var(--primary))"
+                  fill="var(--primary)"
                   radius={[2, 2, 0, 0]}
                 />
               </BarChart>
@@ -136,8 +136,8 @@ export function EarningsChart({ data, timeRange, customRange, isLoading }: Earni
                 <Area 
                   type="monotone" 
                   dataKey="totalSats" 
-                  stroke="hsl(var(--primary))"
-                  fill="hsl(var(--primary))"
+                  stroke="var(--primary)"
+                  fill="var(--primary)"
                   fillOpacity={0.3}
                   strokeWidth={2}
                 />

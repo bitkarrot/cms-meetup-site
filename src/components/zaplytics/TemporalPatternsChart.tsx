@@ -1,6 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   ResponsiveContainer, 
   BarChart,
@@ -10,9 +10,9 @@ import {
   CartesianGrid,
   Tooltip,
   Cell
-} from 'recharts';
-import type { EarningsByHour, EarningsByDayOfWeek } from '@/types/zaplytics';
-import { formatSats } from '@/lib/zaplytics/utils';
+} from "recharts";
+import type { EarningsByHour, EarningsByDayOfWeek } from "@/types/zaplytics";
+import { formatSats } from "@/lib/zaplytics/utils";
 
 interface TemporalPatternsChartProps {
   hourlyData: EarningsByHour[];
@@ -32,18 +32,11 @@ interface TooltipProps {
   label?: string | number;
 }
 
-// Purple to blue gradient colors (darker for higher values)
 const generateHeatmapColor = (value: number, maxValue: number): string => {
-  if (maxValue === 0) return 'hsl(263, 20%, 50%)';
-  
+  if (maxValue === 0) return "color-mix(in srgb, var(--primary), transparent 80%)";
   const intensity = Math.min(value / maxValue, 1);
-  const hue = 263 - (intensity * 20); // From purple (263) to blue (243)
-  const saturation = 20 + (intensity * 67); // From 20% to 87%
-  const lightness = 80 - (intensity * 35); // From 80% to 45%
-  
-  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+  return `color-mix(in srgb, var(--primary), transparent ${Math.round((1 - intensity) * 80)}%)`;
 };
-
 export function TemporalPatternsChart({ hourlyData, weeklyData, isLoading }: TemporalPatternsChartProps) {
   if (isLoading) {
     return (

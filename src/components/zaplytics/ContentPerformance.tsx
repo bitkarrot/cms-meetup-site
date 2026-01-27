@@ -179,7 +179,7 @@ export function ContentPerformance({ data, isLoading }: ContentPerformanceProps)
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Target className="h-5 w-5 text-green-500" />
+          <Target className="h-5 w-5 text-primary" />
           Content Performance
         </CardTitle>
         <p className="text-sm text-muted-foreground">
