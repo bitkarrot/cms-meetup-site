@@ -526,9 +526,17 @@ export default function AdminSystemSettings() {
             Admin User Roles
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Manage permissions for users listed in the remote nostr.json.
+            Manage permissions for users listed in the <b>nostr.json</b> file.
+            </p>
+            <p className="text-sm">
+            Your current nostr.json is located at: 
+            <b className="break-all">
+              {import.meta.env.VITE_REMOTE_NOSTR_JSON_URL || 'Not configured'}
+            </b>
+            </p>
+            <p className="text-sm text-muted-foreground">
             {isMasterUser ? " As the master user, you can assign roles." : " View only access."}
-          </p>
+            </p>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
