@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 import { Users } from 'lucide-react';
 import { useAppContext } from '@/hooks/useAppContext';
 import { useAuthor } from '@/hooks/useAuthor';
@@ -39,18 +40,41 @@ function UserOption({ pubkey }: { pubkey: string }) {
 export default function AdminZaplytics() {
   const { config } = useAppContext();
   const feedNpubs = config.siteConfig?.feedNpubs || [];
-  
-  const [selectedPubkey, setSelectedPubkey] = useState<string>(feedNpubs[0] || '');
+
+  const [selectedPubkey, setSelectedPubkey] = useState<string>('');
   const [timeRange, setTimeRange] = useState<TimeRange>('24h');
   const [customRange, setCustomRange] = useState<CustomDateRange | undefined>();
-
-  const { 
-    data: analytics, 
-    isLoading, 
-    error 
-  } = useZapAnalytics(timeRange, customRange, selectedPubkey);
+  const [hasStarted, setHasStarted] = useState(false);
 
   const isCustomRangeIncomplete = timeRange === 'custom' && (!customRange?.from || !customRange?.to);
+
+  const {
+    data: analytics,
+    isLoading: queryLoading,
+    error
+  } = useZapAnalytics(
+    timeRange,
+    customRange,
+    hasStarted && selectedPubkey ? selectedPubkey : undefined
+  );
+
+  // Only show skeletons on the very first load for a selected user
+  const isLoading = queryLoading && (!analytics || (analytics as any).totalZaps === 0);
+
+  const handleStartAnalytics = () => {
+    if (selectedPubkey && !isCustomRangeIncomplete) {
+      setHasStarted(true);
+    }
+  };
+
+  // Reset hasStarted when user changes to require a re-click or different behavior
+  // Or just let it auto-load once they've started once? 
+  // The user said "until the user choses... and selects", so maybe every time they change we wait?
+  // Let's keep it simple: once they click "Show", it stays "showing" for that session until they change user.
+  const onUserChange = (pubkey: string) => {
+    setSelectedPubkey(pubkey);
+    setHasStarted(false); // Reset to require another click
+  };
 
   return (
     <div className="space-y-6">
@@ -61,10 +85,10 @@ export default function AdminZaplytics() {
             Analyze zap earnings for your community members.
           </p>
         </div>
-        
+
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <div className="w-full sm:w-64">
-            <Select value={selectedPubkey} onValueChange={setSelectedPubkey}>
+            <Select value={selectedPubkey} onValueChange={onUserChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a user..." />
               </SelectTrigger>
@@ -77,20 +101,42 @@ export default function AdminZaplytics() {
               </SelectContent>
             </Select>
           </div>
-          
-          <TimeRangeButtons 
-            value={timeRange} 
-            onChange={setTimeRange}
+
+          <TimeRangeButtons
+            value={timeRange}
+            onChange={(val) => {
+              setTimeRange(val);
+              setHasStarted(false); // Reset to require another click
+            }}
             customRange={customRange}
-            onCustomRangeChange={setCustomRange}
+            onCustomRangeChange={(val) => {
+              setCustomRange(val);
+              setHasStarted(false); // Reset to require another click
+            }}
           />
         </div>
       </div>
 
-      {!selectedPubkey ? (
-        <Card>
-          <CardContent className="py-12 text-center text-muted-foreground">
-            Please select a user from the dropdown to view their zap analytics.
+      {!hasStarted ? (
+        <Card className="bg-muted/30 border-dashed">
+          <CardContent className="py-16 text-center space-y-4">
+            <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Users className="h-6 w-6 text-primary" />
+            </div>
+            <div className="max-w-md mx-auto space-y-2">
+              <h3 className="text-lg font-semibold text-foreground">Ready to analyze zaps?</h3>
+              <p className="text-muted-foreground">
+                Select a community member and a time range above to view their zap earnings and analytics.
+              </p>
+            </div>
+            <Button
+              size="lg"
+              onClick={handleStartAnalytics}
+              disabled={!selectedPubkey || isCustomRangeIncomplete}
+              className="px-8"
+            >
+              Show Analytics
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -124,30 +170,30 @@ export default function AdminZaplytics() {
               <StatsCards data={analytics} isLoading={isLoading} />
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <EarningsChart 
-                  data={analytics?.earningsByPeriod || []} 
+                <EarningsChart
+                  data={analytics?.earningsByPeriod || []}
                   timeRange={timeRange}
                   customRange={customRange}
-                  isLoading={isLoading} 
+                  isLoading={isLoading}
                 />
-                                {analytics?.temporalPatterns && (
-                  <TemporalPatternsChart 
+
+                {analytics?.temporalPatterns && (
+                  <TemporalPatternsChart
                     hourlyData={analytics.temporalPatterns.earningsByHour}
                     weeklyData={analytics.temporalPatterns.earningsByDayOfWeek}
                     isLoading={isLoading}
                   />
                 )}
-
               </div>
 
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                                <TopContentTable 
+                <TopContentTable
                   data={analytics?.topContent || []}
                   isLoading={isLoading}
                 />
 
                 {analytics?.zapperLoyalty && (
-                  <ZapperLoyalty 
+                  <ZapperLoyalty
                     data={analytics.zapperLoyalty}
                     isLoading={isLoading}
                   />
@@ -155,14 +201,14 @@ export default function AdminZaplytics() {
               </div>
 
               {analytics?.contentPerformance && analytics.contentPerformance.length > 0 && (
-                <ContentPerformance 
+                <ContentPerformance
                   data={analytics.contentPerformance}
                   isLoading={isLoading}
                 />
               )}
 
               {analytics?.hashtagPerformance && (
-                <HashtagAnalytics 
+                <HashtagAnalytics
                   data={analytics.hashtagPerformance}
                   isLoading={isLoading}
                 />
