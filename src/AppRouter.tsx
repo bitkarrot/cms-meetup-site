@@ -26,6 +26,7 @@ import BlogPage from "./pages/BlogPage";
 import BlogPostPage from "./pages/BlogPostPage";
 import FeedPage from "./pages/FeedPage";
 import StaticPage from "./pages/StaticPage";
+import ProfilePage from "./pages/ProfilePage";
 
 function AdminRoutes() {
   return <AdminWrapper />;
@@ -43,6 +44,7 @@ export function AppRouter() {
         <Route path="/blog" element={<BlogPage />} />
         <Route path="/blog/:postId" element={<BlogPostPage />} />
         <Route path="/feed" element={<FeedPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         {/* NIP-19 route for npub1, note1, naddr1, nevent1, nprofile1 */}
         <Route
           path="/:nip19(npub1[a-z0-9]+|nprofile1[a-z0-9]+|note1[a-z0-9]+|nevent1[a-z0-9]+|naddr1[a-z0-9]+)"

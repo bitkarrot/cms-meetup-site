@@ -6,12 +6,12 @@ import { Separator } from '@/components/ui/separator';
 import { useTheme } from '@/hooks/useTheme';
 import { LoginArea } from '@/components/auth/LoginArea';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { 
-  LayoutDashboard, 
-  FileText, 
+import {
+  LayoutDashboard,
+  FileText,
   FileCode,
-  Calendar, 
-  Settings, 
+  Calendar,
+  Settings,
   Home,
   Menu,
   X,
@@ -20,8 +20,7 @@ import {
   Shield,
   Rss,
   Zap,
-  FileImage,
-  User
+  FileImage
 } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -35,7 +34,6 @@ export default function AdminLayout() {
 
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
-    { name: 'Profile', href: '/admin/profile', icon: User },
     { name: 'Blog Posts', href: '/admin/blog', icon: FileText },
     { name: 'Events', href: '/admin/events', icon: Calendar },
     { name: 'Feed', href: '/admin/feed', icon: Rss },
