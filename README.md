@@ -1,4 +1,4 @@
-# Nostr-Powered CMS
+# A Nostr CMS for Organizations
 
 Deploy with Vercel 
 
