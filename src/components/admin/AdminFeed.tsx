@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, Save, Rss, Trash2, UserPlus } from 'lucide-react';
+import { AlertCircle, Save, Rss, Trash2, UserPlus, Lock } from 'lucide-react';
 import { useAppContext } from '@/hooks/useAppContext';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useQueryClient } from '@tanstack/react-query';
@@ -18,10 +18,10 @@ import { useAuthor } from '@/hooks/useAuthor';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { User } from 'lucide-react';
 
-function FeedSourceItem({ npub, onRemove }: { npub: string; onRemove: (npub: string) => void }) {
+function FeedSourceItem({ npub, onRemove, disabled }: { npub: string; onRemove: (npub: string) => void; disabled: boolean }) {
   const { data } = useAuthor(npub);
   const metadata = data?.metadata;
-  
+
   return (
     <div className="flex items-center justify-between p-3 bg-card/50">
       <div className="flex items-center gap-3 overflow-hidden mr-2">
@@ -43,9 +43,10 @@ function FeedSourceItem({ npub, onRemove }: { npub: string; onRemove: (npub: str
       <Button
         variant="ghost"
         size="sm"
+        disabled={disabled}
         onClick={() => onRemove(npub)}
       >
-        <Trash2 className="h-4 w-4 text-destructive" />
+        <Trash2 className={`h-4 w-4 ${disabled ? 'text-muted-foreground' : 'text-destructive'}`} />
       </Button>
     </div>
   );
@@ -93,7 +94,16 @@ export default function AdminFeed() {
     }
   }, [config.siteConfig]);
 
+  const masterPubkey = (import.meta.env.VITE_MASTER_PUBKEY || '').toLowerCase().trim();
+  const userPubkey = user?.pubkey.toLowerCase().trim();
+  const isMaster = userPubkey === masterPubkey;
+  const adminRoles = config.siteConfig?.adminRoles || {};
+  const userRole = userPubkey ? adminRoles[userPubkey] : undefined;
+
+  const canManageFeed = isMaster || userRole === 'primary';
+
   const handleSave = async () => {
+    if (!canManageFeed) return;
     setIsSaving(true);
     try {
       const currentConfig = config.siteConfig || {};
@@ -167,11 +177,20 @@ export default function AdminFeed() {
             Configure which Nostr users appear in your community feed.
           </p>
         </div>
-        <Button onClick={handleSave} disabled={isSaving || !user}>
+        <Button onClick={handleSave} disabled={isSaving || !user || !canManageFeed}>
           <Save className="h-4 w-4 mr-2" />
           {isSaving ? 'Saving...' : 'Save Changes'}
         </Button>
       </div>
+
+      {!canManageFeed && (
+        <div className="flex items-center gap-2 p-4 border rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800">
+          <Lock className="h-5 w-5 flex-shrink-0" />
+          <div className="text-sm">
+            <span className="font-bold">Restricted Access:</span> Only Master and Primary Admins can modify feed sources.
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -192,6 +211,7 @@ export default function AdminFeed() {
               </CardDescription>
               <div className="flex gap-2">
                 <Select
+                  disabled={!canManageFeed}
                   onValueChange={(pubkey) => {
                     if (pubkey && !feedNpubs.includes(pubkey)) {
                       setFeedNpubs(prev => [...prev, pubkey]);
@@ -209,12 +229,12 @@ export default function AdminFeed() {
                           <DirectorySelectItem name={name} pubkey={pubkey as string} />
                         </SelectItem>
                       ))}
-                    {(!remoteNostrJson?.names || 
+                    {(!remoteNostrJson?.names ||
                       Object.entries(remoteNostrJson.names).filter(([_, pubkey]) => !feedNpubs.includes(pubkey as string)).length === 0) && (
-                      <div className="p-2 text-sm text-muted-foreground text-center">
-                        No more users to add from directory.
-                      </div>
-                    )}
+                        <div className="p-2 text-sm text-muted-foreground text-center">
+                          No more users to add from directory.
+                        </div>
+                      )}
                   </SelectContent>
                 </Select>
               </div>
@@ -234,9 +254,11 @@ export default function AdminFeed() {
                   onChange={(e) => setNewNpub(e.target.value)}
                   placeholder="npub1..."
                   className="flex-1"
+                  disabled={!canManageFeed}
                 />
-                <Button 
+                <Button
                   type="button"
+                  disabled={!canManageFeed}
                   onClick={() => {
                     if (newNpub.trim()) {
                       setFeedNpubs(prev => [...new Set([...prev, newNpub.trim()])]);
@@ -259,10 +281,11 @@ export default function AdminFeed() {
                   </div>
                 ) : (
                   feedNpubs.map((npub) => (
-                    <FeedSourceItem 
-                      key={npub} 
-                      npub={npub} 
-                      onRemove={(n) => setFeedNpubs(prev => prev.filter(item => item !== n))} 
+                    <FeedSourceItem
+                      key={npub}
+                      npub={npub}
+                      disabled={!canManageFeed}
+                      onRemove={(n) => setFeedNpubs(prev => prev.filter(item => item !== n))}
                     />
                   ))
                 )}
@@ -282,6 +305,7 @@ export default function AdminFeed() {
             <Switch
               checked={readFromPublishRelays}
               onCheckedChange={setReadFromPublishRelays}
+              disabled={!canManageFeed}
             />
           </div>
 

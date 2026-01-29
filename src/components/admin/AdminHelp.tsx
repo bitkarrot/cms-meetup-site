@@ -13,6 +13,7 @@ import {
   Zap,
   MessageCircle,
   Calendar,
+  Rss,
   FileText,
   FileCode,
   ExternalLink
@@ -117,6 +118,26 @@ export default function AdminHelp() {
                         <span>View Only*</span>
                       </div>
                     </div>
+                  </td>
+                </tr>
+
+                {/* Feed Management */}
+                <tr>
+                  <td className="px-4 py-4 flex items-center gap-2 font-medium">
+                    <Rss className="h-4 w-4 text-orange-500" />
+                    Manage Feed Sources
+                  </td>
+                  <td className="px-4 py-4 text-center border-l">
+                    <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" />
+                  </td>
+                  <td className="px-4 py-4 text-center border-l">
+                    <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" />
+                  </td>
+                  <td className="px-4 py-4 text-center border-l">
+                    <XCircle className="h-5 w-5 text-muted-foreground/30 mx-auto" />
+                  </td>
+                  <td className="px-4 py-4 text-center border-l">
+                    <XCircle className="h-5 w-5 text-muted-foreground/30 mx-auto" />
                   </td>
                 </tr>
 
