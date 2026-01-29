@@ -36,12 +36,11 @@ import {
   Filter
 } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 // --- Types ---
 
@@ -299,391 +298,26 @@ function NoteCard({
   );
 }
 
-// --- Create Note Dialog ---
-
-function CreateNoteDialog({
-  open,
-  onOpenChange,
-  editingNote,
-  publishRelays,
-  blossomRelays,
-  onSuccess,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  editingNote: Note | null;
-  publishRelays: string[];
-  blossomRelays: string[];
-  onSuccess: () => void;
-}) {
-  const { user } = useCurrentUser();
-  const { mutateAsync: publishEvent, isPending } = useNostrPublish();
-  const { toast } = useToast();
-
-  const [content, setContent] = useState('');
-  const [selectedRelays, setSelectedRelays] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
-  const [isUploading, setIsUploading] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Initialize form when editing
-  useEffect(() => {
-    if (editingNote) {
-      setContent(editingNote.content);
-    } else {
-      setContent('');
-    }
-  }, [editingNote]);
-
-  // Initialize selected relays
-  useEffect(() => {
-    if (publishRelays.length > 0 && selectedRelays.length === 0) {
-      setSelectedRelays(publishRelays);
-    }
-  }, [publishRelays, selectedRelays.length]);
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0 || !user) return;
-
-    const defaultBlossomRelay = blossomRelays[0];
-    if (!defaultBlossomRelay) {
-      toast({
-        title: 'No Blossom Server',
-        description: 'Please configure a Blossom server in Media settings first.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsUploading(true);
-
-    try {
-      const urls: string[] = [];
-
-      for (const file of Array.from(files)) {
-        const uploader = new BlossomUploader({
-          servers: [defaultBlossomRelay],
-          signer: user.signer,
-        });
-
-        const result = await uploader.upload(file);
-        // BlossomUploader returns tags array like [["url", "https://..."]]
-        if (result && result.length > 0) {
-          const urlTag = result.find((tag: string[]) => tag[0] === 'url');
-          if (urlTag && urlTag[1]) {
-            urls.push(urlTag[1]);
-          }
-        }
-      }
-
-      // Insert URLs at cursor position or at end
-      if (urls.length > 0) {
-        const urlText = urls.join('\n');
-        const textarea = textareaRef.current;
-        if (textarea) {
-          const start = textarea.selectionStart;
-          const end = textarea.selectionEnd;
-          const newContent = content.slice(0, start) + '\n' + urlText + '\n' + content.slice(end);
-          setContent(newContent);
-        } else {
-          setContent(prev => prev + '\n' + urlText);
-        }
-
-        toast({
-          title: 'Upload Successful',
-          description: `Uploaded ${urls.length} file(s) to ${defaultBlossomRelay}`,
-        });
-      }
-    } catch (err) {
-      console.error('Upload failed:', err);
-      toast({
-        title: 'Upload Failed',
-        description: (err as Error).message,
-        variant: 'destructive',
-      });
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
-  const handleSubmit = async (asDraft: boolean) => {
-    if (!user || !content.trim()) return;
-
-    try {
-      if (asDraft) {
-        // Save as Kind 31234 (NIP-37 Draft Wrap) for drafts
-        const draftEvent = {
-          kind: 1,
-          content: content,
-          tags: [],
-          created_at: Math.floor(Date.now() / 1000),
-        };
-
-        let encryptedContent: string;
-        if (user.signer.nip44) {
-          encryptedContent = await user.signer.nip44.encrypt(user.pubkey, JSON.stringify(draftEvent));
-        } else if (user.signer.nip04) {
-          encryptedContent = await user.signer.nip04.encrypt(user.pubkey, JSON.stringify(draftEvent));
-        } else {
-          encryptedContent = JSON.stringify(draftEvent);
-        }
-
-        const dTag = editingNote?.dTag || `note-${Date.now()}`;
-
-        await publishEvent({
-          event: {
-            kind: 31234,
-            content: encryptedContent,
-            tags: [
-              ['d', dTag],
-              ['k', '1'],
-            ],
-          },
-          relays: selectedRelays,
-        });
-
-        toast({ title: 'Draft Saved', description: 'Your note draft has been saved privately.' });
-      } else {
-        // Publish as Kind 1
-        await publishEvent({
-          event: {
-            kind: 1,
-            content: content,
-            tags: [],
-          },
-          relays: selectedRelays,
-        });
-
-        // If editing a draft, delete it after publishing
-        if (editingNote?.isDraft && editingNote.dTag) {
-          await publishEvent({
-            event: {
-              kind: 5,
-              tags: [
-                ['e', editingNote.id],
-                ['a', `31234:${user.pubkey}:${editingNote.dTag}`]
-              ],
-            },
-            relays: selectedRelays,
-          });
-        }
-
-        toast({ title: 'Note Published', description: 'Your note has been published to the network!' });
-      }
-
-      setContent('');
-      onOpenChange(false);
-      onSuccess();
-    } catch (error) {
-      console.error('Failed to save/publish note:', error);
-      toast({
-        title: 'Error',
-        description: (error as Error).message || 'Failed to save note.',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleClose = () => {
-    if (content.trim() && !confirm('You have unsaved changes. Discard them?')) {
-      return;
-    }
-    setContent('');
-    onOpenChange(false);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle>{editingNote ? 'Edit Note' : 'New Note'}</DialogTitle>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-y-auto space-y-4">
-          {/* Edit/Preview Tabs */}
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'edit' | 'preview')}>
-            <TabsList className="grid w-fit grid-cols-2">
-              <TabsTrigger value="edit">Edit</TabsTrigger>
-              <TabsTrigger value="preview">Preview</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="edit" className="mt-2">
-              <Textarea
-                ref={textareaRef}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder="Write something... (Paste or drop media files to upload)"
-                className="min-h-[200px] resize-none"
-              />
-            </TabsContent>
-
-            <TabsContent value="preview" className="mt-2">
-              <div className="min-h-[200px] p-4 border rounded-md max-w-none bg-muted/30 overflow-auto">
-                {content ? (
-                  <NoteContent
-                    event={{ content, kind: 1, tags: [], created_at: 0, id: '', pubkey: '', sig: '' }}
-                  />
-                ) : (
-                  <span className="text-muted-foreground italic">Nothing to preview</span>
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
-
-          {/* Relay Selection */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Share2 className="h-4 w-4" />
-              Post to
-              <Badge variant="outline" className="text-xs">Optimal relays</Badge>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-2 max-h-32 overflow-y-auto">
-              {publishRelays.map((relay) => (
-                <div key={relay} className="flex items-center space-x-2 bg-muted/30 p-2 rounded-md border">
-                  <Checkbox
-                    id={`relay-${relay}`}
-                    checked={selectedRelays.includes(relay)}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedRelays(prev => [...prev, relay]);
-                      } else {
-                        setSelectedRelays(prev => prev.filter(r => r !== relay));
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor={`relay-${relay}`}
-                    className="text-xs font-mono truncate cursor-pointer flex-1"
-                    title={relay}
-                  >
-                    {relay.replace('wss://', '').replace('ws://', '')}
-                  </label>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Footer with action buttons */}
-        <DialogFooter className="flex-shrink-0 border-t pt-4">
-          <div className="flex items-center justify-between w-full">
-            {/* Left side - media buttons */}
-            <div className="flex items-center gap-2">
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept="image/*,video/*"
-                multiple
-                onChange={handleFileUpload}
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading}
-                title="Upload image"
-              >
-                {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
-              </Button>
-
-              {/* Emoji Picker */}
-              <div className="relative">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  title="Insert emoji"
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  type="button"
-                >
-                  <Smile className="h-4 w-4" />
-                </Button>
-                {showEmojiPicker && (
-                  <div className="absolute bottom-full left-0 mb-2 p-2 bg-popover border rounded-lg shadow-lg z-50 w-64">
-                    <div className="grid grid-cols-8 gap-1">
-                      {['😀', '😂', '🥰', '😎', '🤔', '😢', '😡', '🎉',
-                        '❤️', '🔥', '⚡', '💜', '🙏', '👀', '🚀', '💯',
-                        '👍', '👎', '👏', '🙌', '💪', '✨', '🌟', '⭐',
-                        '🎵', '📸', '💻', '📱', '🔗', '✅', '❌', '⚠️'].map(emoji => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            className="p-1 hover:bg-muted rounded text-lg transition-colors"
-                            onClick={() => {
-                              const textarea = textareaRef.current;
-                              if (textarea) {
-                                const start = textarea.selectionStart;
-                                const end = textarea.selectionEnd;
-                                const newContent = content.slice(0, start) + emoji + content.slice(end);
-                                setContent(newContent);
-                                // Set cursor position after emoji
-                                setTimeout(() => {
-                                  textarea.focus();
-                                  textarea.setSelectionRange(start + emoji.length, start + emoji.length);
-                                }, 0);
-                              } else {
-                                setContent(prev => prev + emoji);
-                              }
-                              setShowEmojiPicker(false);
-                            }}
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right side - action buttons */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Mentions</span>
-              <Button variant="outline" onClick={handleClose}>
-                Cancel
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => handleSubmit(true)}
-                disabled={isPending || !content.trim()}
-              >
-                Save Draft
-              </Button>
-              <Button
-                onClick={() => handleSubmit(false)}
-                disabled={isPending || !content.trim()}
-              >
-                {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Post
-              </Button>
-            </div>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 // --- Main Component ---
 
 export default function AdminNotes() {
   const { nostr, publishRelays: initialPublishRelays } = useDefaultRelay();
   const { user } = useCurrentUser();
-  const { mutateAsync: publishEvent } = useNostrPublish();
+  const { mutateAsync: publishEvent, isPending } = useNostrPublish();
   const { config } = useAppContext();
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState<'drafts' | 'published'>('published');
   const [isCreating, setIsCreating] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [content, setContent] = useState('');
+  const [editorTab, setEditorTab] = useState<'edit' | 'preview'>('edit');
+  const [selectedRelays, setSelectedRelays] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [engagementFilters, setEngagementFilters] = useState({
     reactions: false,
     zaps: false,
@@ -796,6 +430,185 @@ export default function AdminNotes() {
     refetchDrafts();
   }, [refetchPublished, refetchDrafts]);
 
+  // Initialize selected relays
+  useEffect(() => {
+    if (initialPublishRelays.length > 0 && selectedRelays.length === 0) {
+      setSelectedRelays(initialPublishRelays);
+    }
+  }, [initialPublishRelays, selectedRelays.length]);
+
+  // Check if content is dirty
+  const isDirty = useMemo(() => {
+    if (editingNote) {
+      return content !== editingNote.content;
+    }
+    return content.trim() !== '';
+  }, [content, editingNote]);
+
+  // Prevent accidental navigation
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isCreating && isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isCreating, isDirty]);
+
+  const handleCancel = () => {
+    if (isDirty && !confirm('You have unsaved changes. Are you sure you want to discard them?')) {
+      return;
+    }
+    setIsCreating(false);
+    setEditingNote(null);
+    setContent('');
+    setEditorTab('edit');
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !user) return;
+
+    const defaultBlossomRelay = blossomRelays[0];
+    if (!defaultBlossomRelay) {
+      toast({
+        title: 'No Blossom Server',
+        description: 'Please configure a Blossom server in Media settings first.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const urls: string[] = [];
+
+      for (const file of Array.from(files)) {
+        const uploader = new BlossomUploader({
+          servers: [defaultBlossomRelay],
+          signer: user.signer,
+        });
+
+        const result = await uploader.upload(file);
+        if (result && result.length > 0) {
+          const urlTag = result.find((tag: string[]) => tag[0] === 'url');
+          if (urlTag && urlTag[1]) {
+            urls.push(urlTag[1]);
+          }
+        }
+      }
+
+      if (urls.length > 0) {
+        const urlText = urls.join('\n');
+        const textarea = textareaRef.current;
+        if (textarea) {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const newContent = content.slice(0, start) + '\n' + urlText + '\n' + content.slice(end);
+          setContent(newContent);
+        } else {
+          setContent(prev => prev + '\n' + urlText);
+        }
+
+        toast({
+          title: 'Upload Successful',
+          description: `Uploaded ${urls.length} file(s) to ${defaultBlossomRelay}`,
+        });
+      }
+    } catch (err) {
+      console.error('Upload failed:', err);
+      toast({
+        title: 'Upload Failed',
+        description: (err as Error).message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleSubmit = async (asDraft: boolean) => {
+    if (!user || !content.trim()) return;
+
+    try {
+      if (asDraft) {
+        const draftEvent = {
+          kind: 1,
+          content: content,
+          tags: [],
+          created_at: Math.floor(Date.now() / 1000),
+        };
+
+        let encryptedContent: string;
+        if (user.signer.nip44) {
+          encryptedContent = await user.signer.nip44.encrypt(user.pubkey, JSON.stringify(draftEvent));
+        } else if (user.signer.nip04) {
+          encryptedContent = await user.signer.nip04.encrypt(user.pubkey, JSON.stringify(draftEvent));
+        } else {
+          encryptedContent = JSON.stringify(draftEvent);
+        }
+
+        const dTag = editingNote?.dTag || `note-${Date.now()}`;
+
+        await publishEvent({
+          event: {
+            kind: 31234,
+            content: encryptedContent,
+            tags: [
+              ['d', dTag],
+              ['k', '1'],
+            ],
+          },
+          relays: selectedRelays,
+        });
+
+        toast({ title: 'Draft Saved', description: 'Your note draft has been saved privately.' });
+      } else {
+        await publishEvent({
+          event: {
+            kind: 1,
+            content: content,
+            tags: [],
+          },
+          relays: selectedRelays,
+        });
+
+        if (editingNote?.isDraft && editingNote.dTag) {
+          await publishEvent({
+            event: {
+              kind: 5,
+              tags: [
+                ['e', editingNote.id],
+                ['a', `31234:${user.pubkey}:${editingNote.dTag}`]
+              ],
+            },
+            relays: selectedRelays,
+          });
+        }
+
+        toast({ title: 'Note Published', description: 'Your note has been published to the network!' });
+      }
+
+      setContent('');
+      setIsCreating(false);
+      setEditingNote(null);
+      refetchAll();
+    } catch (error) {
+      console.error('Failed to save/publish note:', error);
+      toast({
+        title: 'Error',
+        description: (error as Error).message || 'Failed to save note.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleDelete = async (note: Note) => {
     if (!user || note.pubkey !== user.pubkey) return;
 
@@ -828,136 +641,319 @@ export default function AdminNotes() {
 
   const handleEdit = (note: Note) => {
     setEditingNote(note);
+    setContent(note.content);
     setIsCreating(true);
+    window.scrollTo(0, 0);
   };
 
   const handlePublishDraft = async (note: Note) => {
     setEditingNote(note);
+    setContent(note.content);
     setIsCreating(true);
+    window.scrollTo(0, 0);
   };
 
   const notes = activeTab === 'drafts' ? draftNotes : publishedNotes;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Notes</h2>
-          <p className="text-muted-foreground">
-            Create and manage your short-form notes (Kind 1).
-          </p>
-        </div>
-        <Button onClick={() => { setEditingNote(null); setIsCreating(true); }}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Note
-        </Button>
-      </div>
+      {isCreating ? (
+        <>
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold tracking-tight">
+              {editingNote ? 'Edit Note' : 'Create New Note'}
+            </h2>
+            <Button variant="outline" onClick={handleCancel}>
+              Back to List
+            </Button>
+          </div>
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'drafts' | 'published')}>
-        <div className="flex items-center justify-between">
-          <TabsList className="grid w-fit grid-cols-2">
-            <TabsTrigger value="drafts">
-              Drafts
-              {draftNotes && draftNotes.length > 0 && (
-                <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1 text-xs">
-                  {draftNotes.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="published">
-              Published
-              {publishedNotes && publishedNotes.length > 0 && (
-                <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1 text-xs">
-                  {publishedNotes.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <Tabs value={editorTab} onValueChange={(v) => setEditorTab(v as 'edit' | 'preview')}>
+                <TabsList className="grid w-fit grid-cols-2">
+                  <TabsTrigger value="edit">Edit</TabsTrigger>
+                  <TabsTrigger value="preview">Preview</TabsTrigger>
+                </TabsList>
 
-          {activeTab === 'published' && (
-            <div className="flex items-center gap-1.5 bg-muted/30 p-1 rounded-lg border">
-              <Button
-                variant={engagementFilters.reactions ? 'default' : 'ghost'}
-                size="sm"
-                className="h-8 w-10 px-0"
-                onClick={() => setEngagementFilters(prev => ({ ...prev, reactions: !prev.reactions }))}
-                title="Filter by Likes"
-              >
-                <Heart className={cn("h-4 w-4", engagementFilters.reactions && "fill-current")} />
-              </Button>
-              <Button
-                variant={engagementFilters.zaps ? 'default' : 'ghost'}
-                size="sm"
-                className="h-8 w-10 px-0"
-                onClick={() => setEngagementFilters(prev => ({ ...prev, zaps: !prev.zaps }))}
-                title="Filter by Zaps"
-              >
-                <Zap className={cn("h-4 w-4", engagementFilters.zaps && "fill-current")} />
-              </Button>
-              <Button
-                variant={engagementFilters.reposts ? 'default' : 'ghost'}
-                size="sm"
-                className="h-8 w-10 px-0"
-                onClick={() => setEngagementFilters(prev => ({ ...prev, reposts: !prev.reposts }))}
-                title="Filter by Reposts"
-              >
-                <Repeat2 className="h-4 w-4" />
-              </Button>
+                <TabsContent value="edit" className="mt-2">
+                  <Textarea
+                    ref={textareaRef}
+                    value={content}
+                    onChange={(e) => setContent(e.target.value)}
+                    placeholder="Write something... (Paste or drop media files to upload)"
+                    className="min-h-[200px] resize-none"
+                    required
+                  />
+                </TabsContent>
+
+                <TabsContent value="preview" className="mt-2">
+                  <div className="min-h-[200px] p-4 border rounded-md max-w-none bg-muted/30 overflow-auto">
+                    {content ? (
+                      <NoteContent
+                        event={{ content, kind: 1, tags: [], created_at: 0, id: '', pubkey: '', sig: '' }}
+                      />
+                    ) : (
+                      <span className="text-muted-foreground italic">Nothing to preview</span>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
+
+              {/* Relay Selection */}
+              <div className="space-y-3 pt-4 border-t">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Share2 className="h-4 w-4" />
+                  Post to
+                  <Badge variant="outline" className="text-xs">Optimal relays</Badge>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 max-h-48 overflow-y-auto">
+                  {initialPublishRelays.map((relay) => (
+                    <div key={relay} className="flex items-center space-x-2 bg-muted/30 p-2 rounded-md border">
+                      <Checkbox
+                        id={`relay-${relay}`}
+                        checked={selectedRelays.includes(relay)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedRelays(prev => [...prev, relay]);
+                          } else {
+                            setSelectedRelays(prev => prev.filter(r => r !== relay));
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor={`relay-${relay}`}
+                        className="text-xs font-mono truncate cursor-pointer flex-1"
+                        title={relay}
+                      >
+                        {relay.replace('wss://', '').replace('ws://', '')}
+                      </label>
+                    </div>
+                  ))}
+                  {initialPublishRelays.length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">No publishing relays configured.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="flex items-center justify-between border-t pt-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*,video/*"
+                    multiple
+                    onChange={handleFileUpload}
+                  />
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploading}
+                        >
+                          {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Upload Media</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+
+                  <div className="relative">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9"
+                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                          >
+                            <Smile className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Insert Emoji</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    {showEmojiPicker && (
+                      <div className="absolute bottom-full left-0 mb-2 p-2 bg-popover border rounded-lg shadow-lg z-50 w-64">
+                        <div className="grid grid-cols-8 gap-1">
+                          {['😀', '😂', '🥰', '😎', '🤔', '😢', '😡', '🎉',
+                            '❤️', '🔥', '⚡', '💜', '🙏', '👀', '🚀', '💯',
+                            '👍', '👎', '👏', '🙌', '💪', '✨', '🌟', '⭐',
+                            '🎵', '📸', '💻', '📱', '🔗', '✅', '❌', '⚠️'].map(emoji => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                className="p-1 hover:bg-muted rounded text-lg transition-colors"
+                                onClick={() => {
+                                  const textarea = textareaRef.current;
+                                  if (textarea) {
+                                    const start = textarea.selectionStart;
+                                    const end = textarea.selectionEnd;
+                                    const newContent = content.slice(0, start) + emoji + content.slice(end);
+                                    setContent(newContent);
+                                    setTimeout(() => {
+                                      textarea.focus();
+                                      textarea.setSelectionRange(start + emoji.length, start + emoji.length);
+                                    }, 0);
+                                  } else {
+                                    setContent(prev => prev + emoji);
+                                  }
+                                  setShowEmojiPicker(false);
+                                }}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={handleCancel}>
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleSubmit(true)}
+                    disabled={isPending || !content.trim()}
+                  >
+                    Save Draft
+                  </Button>
+                  <Button
+                    onClick={() => handleSubmit(false)}
+                    disabled={isPending || !content.trim()}
+                  >
+                    {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    {editingNote?.isDraft ? 'Publish Note' : editingNote ? 'Update Note' : 'Post Note'}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">Notes</h2>
+              <p className="text-muted-foreground">
+                Create and manage your short-form notes (Kind 1).
+              </p>
             </div>
-          )}
-        </div>
+            <Button onClick={() => { setEditingNote(null); setContent(''); setIsCreating(true); }}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Note
+            </Button>
+          </div>
 
-        <TabsContent value="drafts" className="mt-4 space-y-4">
-          {draftNotes?.map((note) => (
-            <NoteCard
-              key={note.id}
-              note={note}
-              user={user}
-              gateway={gateway}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              onPublish={handlePublishDraft}
-            />
-          ))}
-          {(!draftNotes || draftNotes.length === 0) && (
-            <Card>
-              <CardContent className="pt-6 text-center">
-                <p className="text-muted-foreground">No draft notes. Create a new note!</p>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'drafts' | 'published')}>
+            <div className="flex items-center justify-between">
+              <TabsList className="grid w-fit grid-cols-2">
+                <TabsTrigger value="drafts">
+                  Drafts
+                  {draftNotes && draftNotes.length > 0 && (
+                    <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1 text-xs">
+                      {draftNotes.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="published">
+                  Published
+                  {publishedNotes && publishedNotes.length > 0 && (
+                    <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1 text-xs">
+                      {publishedNotes.length}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+              </TabsList>
 
-        <TabsContent value="published" className="mt-4 space-y-4">
-          {publishedNotes?.map((note) => (
-            <NoteCard
-              key={note.id}
-              note={note}
-              user={user}
-              gateway={gateway}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              engagementFilters={engagementFilters}
-            />
-          ))}
-          {(!publishedNotes || publishedNotes.length === 0) && (
-            <Card>
-              <CardContent className="pt-6 text-center">
-                <p className="text-muted-foreground">No published notes yet.</p>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
+              {activeTab === 'published' && (
+                <div className="flex items-center gap-1.5 bg-muted/30 p-1 rounded-lg border">
+                  <Button
+                    variant={engagementFilters.reactions ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 w-10 px-0"
+                    onClick={() => setEngagementFilters(prev => ({ ...prev, reactions: !prev.reactions }))}
+                    title="Filter by Likes"
+                  >
+                    <Heart className={cn("h-4 w-4", engagementFilters.reactions && "fill-current")} />
+                  </Button>
+                  <Button
+                    variant={engagementFilters.zaps ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 w-10 px-0"
+                    onClick={() => setEngagementFilters(prev => ({ ...prev, zaps: !prev.zaps }))}
+                    title="Filter by Zaps"
+                  >
+                    <Zap className={cn("h-4 w-4", engagementFilters.zaps && "fill-current")} />
+                  </Button>
+                  <Button
+                    variant={engagementFilters.reposts ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-8 w-10 px-0"
+                    onClick={() => setEngagementFilters(prev => ({ ...prev, reposts: !prev.reposts }))}
+                    title="Filter by Reposts"
+                  >
+                    <Repeat2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
 
-      <CreateNoteDialog
-        open={isCreating}
-        onOpenChange={setIsCreating}
-        editingNote={editingNote}
-        publishRelays={initialPublishRelays}
-        blossomRelays={blossomRelays}
-        onSuccess={refetchAll}
-      />
+            <TabsContent value="drafts" className="mt-4 space-y-4">
+              {draftNotes?.map((note) => (
+                <NoteCard
+                  key={note.id}
+                  note={note}
+                  user={user}
+                  gateway={gateway}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  onPublish={handlePublishDraft}
+                />
+              ))}
+              {(!draftNotes || draftNotes.length === 0) && (
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <p className="text-muted-foreground">No draft notes. Create a new note!</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            <TabsContent value="published" className="mt-4 space-y-4">
+              {publishedNotes?.map((note) => (
+                <NoteCard
+                  key={note.id}
+                  note={note}
+                  user={user}
+                  gateway={gateway}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  engagementFilters={engagementFilters}
+                />
+              ))}
+              {(!publishedNotes || publishedNotes.length === 0) && (
+                <Card>
+                  <CardContent className="pt-6 text-center">
+                    <p className="text-muted-foreground">No published notes yet.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+          </Tabs>
+        </>
+      )}
     </div>
   );
 }
