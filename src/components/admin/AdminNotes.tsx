@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { nip19 } from 'nostr-tools';
+import { cn } from '@/lib/utils';
 import { NoteContent } from '@/components/NoteContent';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -163,7 +164,7 @@ function NoteCard({
   onEdit,
   onDelete,
   onPublish,
-  hideIfNoEngagement
+  engagementFilters
 }: {
   note: Note;
   user: { pubkey: string } | undefined;
@@ -171,17 +172,9 @@ function NoteCard({
   onEdit: (note: Note) => void;
   onDelete: (note: Note) => void;
   onPublish?: (note: Note) => void;
-  hideIfNoEngagement?: boolean;
+  engagementFilters?: { reactions: boolean, zaps: boolean, reposts: boolean, replies: boolean };
 }) {
   const stats = useNoteStats(note.id, note.pubkey);
-
-  if (hideIfNoEngagement &&
-    !stats.isLoading &&
-    stats.reactions === 0 &&
-    stats.zaps === 0 &&
-    stats.reposts === 0) {
-    return null;
-  }
   const noteId = useMemo(() => {
     try {
       return nip19.noteEncode(note.id);
@@ -189,6 +182,21 @@ function NoteCard({
       return note.id;
     }
   }, [note.id]);
+
+  if (engagementFilters && !stats.isLoading) {
+    const { reactions, zaps, reposts } = engagementFilters;
+    const isAnyFilterActive = reactions || zaps || reposts;
+
+    if (isAnyFilterActive) {
+      const matchReactions = reactions && stats.reactions > 0;
+      const matchZaps = zaps && stats.zaps > 0;
+      const matchReposts = reposts && stats.reposts > 0;
+
+      if (!matchReactions && !matchZaps && !matchReposts) {
+        return null;
+      }
+    }
+  }
 
   const cleanGateway = gateway.endsWith('/') ? gateway.slice(0, -1) : gateway;
   const noteUrl = `${cleanGateway}/${noteId}`;
@@ -676,7 +684,12 @@ export default function AdminNotes() {
   const [activeTab, setActiveTab] = useState<'drafts' | 'published'>('published');
   const [isCreating, setIsCreating] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
-  const [showOnlyEngaged, setShowOnlyEngaged] = useState(false);
+  const [engagementFilters, setEngagementFilters] = useState({
+    reactions: false,
+    zaps: false,
+    reposts: false,
+    replies: false
+  });
 
   const gateway = config.siteConfig?.nip19Gateway || 'https://nostr.at';
 
@@ -862,14 +875,34 @@ export default function AdminNotes() {
           </TabsList>
 
           {activeTab === 'published' && (
-            <div className="flex items-center gap-2 bg-muted/30 px-3 py-1.5 rounded-lg border">
-              <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-              <Label htmlFor="engaged-filter" className="text-xs cursor-pointer">Engagement only</Label>
-              <Switch
-                id="engaged-filter"
-                checked={showOnlyEngaged}
-                onCheckedChange={setShowOnlyEngaged}
-              />
+            <div className="flex items-center gap-1.5 bg-muted/30 p-1 rounded-lg border">
+              <Button
+                variant={engagementFilters.reactions ? 'default' : 'ghost'}
+                size="sm"
+                className="h-8 w-10 px-0"
+                onClick={() => setEngagementFilters(prev => ({ ...prev, reactions: !prev.reactions }))}
+                title="Filter by Likes"
+              >
+                <Heart className={cn("h-4 w-4", engagementFilters.reactions && "fill-current")} />
+              </Button>
+              <Button
+                variant={engagementFilters.zaps ? 'default' : 'ghost'}
+                size="sm"
+                className="h-8 w-10 px-0"
+                onClick={() => setEngagementFilters(prev => ({ ...prev, zaps: !prev.zaps }))}
+                title="Filter by Zaps"
+              >
+                <Zap className={cn("h-4 w-4", engagementFilters.zaps && "fill-current")} />
+              </Button>
+              <Button
+                variant={engagementFilters.reposts ? 'default' : 'ghost'}
+                size="sm"
+                className="h-8 w-10 px-0"
+                onClick={() => setEngagementFilters(prev => ({ ...prev, reposts: !prev.reposts }))}
+                title="Filter by Reposts"
+              >
+                <Repeat2 className="h-4 w-4" />
+              </Button>
             </div>
           )}
         </div>
@@ -904,7 +937,7 @@ export default function AdminNotes() {
               gateway={gateway}
               onEdit={handleEdit}
               onDelete={handleDelete}
-              hideIfNoEngagement={showOnlyEngaged}
+              engagementFilters={engagementFilters}
             />
           ))}
           {(!publishedNotes || publishedNotes.length === 0) && (
