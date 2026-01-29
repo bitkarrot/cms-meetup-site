@@ -1,4 +1,4 @@
-# Meetup or Small Organization Site - Nostr-Powered CMS
+# Nostr-Powered CMS
 
 Deploy with Vercel 
 
