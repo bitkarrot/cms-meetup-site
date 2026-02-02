@@ -34,6 +34,10 @@ export interface AppConfig {
     feedReadFromPublishRelays?: boolean;
     maxEvents?: number;
     maxBlogPosts?: number;
+    /** Default relay for reading content */
+    defaultRelay?: string;
+    /** Publishing relays for blasting content */
+    publishRelays?: string[];
     /** Admin roles mapping: pubkey -> 'primary' | 'secondary' */
     adminRoles?: Record<string, 'primary' | 'secondary'>;
     /** TweakCN theme URL */

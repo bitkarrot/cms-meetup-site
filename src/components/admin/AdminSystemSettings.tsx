@@ -30,6 +30,7 @@ interface SiteConfig {
   showBlog: boolean;
   maxEvents: number;
   maxBlogPosts: number;
+  defaultRelay: string;
   publishRelays: string[];
   blossomRelays: string[];
   adminRoles: Record<string, 'primary' | 'secondary'>;
@@ -125,7 +126,13 @@ export default function AdminSystemSettings() {
     showBlog: config.siteConfig?.showBlog ?? true,
     maxEvents: config.siteConfig?.maxEvents ?? 6,
     maxBlogPosts: config.siteConfig?.maxBlogPosts ?? 3,
-    publishRelays: config.siteConfig?.publishRelays ?? [],
+    defaultRelay: config.siteConfig?.defaultRelay ?? import.meta.env.VITE_DEFAULT_RELAY,
+    publishRelays: config.siteConfig?.publishRelays ?? [
+      import.meta.env.VITE_DEFAULT_RELAY,
+      'wss://relay.damus.io',
+      'wss://relay.primal.net',
+      'wss://nos.lol'
+    ].filter(Boolean),
     blossomRelays: config.siteConfig?.blossomRelays ?? [
       'https://blossom.primal.net',
       'https://blossom.band'
@@ -205,6 +212,7 @@ export default function AdminSystemSettings() {
           heroTitle: 'hero_title',
           heroSubtitle: 'hero_subtitle',
           heroBackground: 'hero_background',
+          defaultRelay: 'default_relay',
           tweakcnThemeUrl: 'tweakcn_theme_url',
           blossomRelays: 'blossom_relays',
           readOnlyAdminAccess: 'read_only_admin_access'
@@ -333,6 +341,7 @@ export default function AdminSystemSettings() {
         ['show_blog', siteConfig.showBlog.toString()],
         ['max_events', siteConfig.maxEvents.toString()],
         ['max_blog_posts', siteConfig.maxBlogPosts.toString()],
+        ['default_relay', siteConfig.defaultRelay],
         ['publish_relays', JSON.stringify(filteredRelays)],
         ['blossom_relays', JSON.stringify(siteConfig.blossomRelays)],
         ['admin_roles', JSON.stringify(siteConfig.adminRoles)],
@@ -373,6 +382,9 @@ export default function AdminSystemSettings() {
   const handleResetToDefaults = async () => {
     if (window.confirm('Are you sure you want to reset all settings to defaults? This will clear all local storage, cached data, delete relay metadata, and republish the default configuration to the relay. You will be logged out and the site will return to its original environment variable state.')) {
       try {
+        // Get default values from environment variables
+        const envDefaultRelay = import.meta.env.VITE_DEFAULT_RELAY;
+
         // 1. Delete NIP-65 relay list (kind 10002) from the relay
         if (user) {
           try {
@@ -392,7 +404,7 @@ export default function AdminSystemSettings() {
           }
         }
 
-        // 2. Publish Kind 30078 with default values
+        // 2. Publish Kind 30078 with default values (blanked out except for default relay)
         const defaultConfigTags = [
           ['d', 'nostr-meetup-site-config'],
           ['title', 'My Meetup Site'],
@@ -406,7 +418,8 @@ export default function AdminSystemSettings() {
           ['show_blog', 'true'],
           ['max_events', '6'],
           ['max_blog_posts', '3'],
-          ['publish_relays', JSON.stringify([])],
+          ['default_relay', envDefaultRelay],
+          ['publish_relays', JSON.stringify([envDefaultRelay])],
           ['blossom_relays', JSON.stringify(['https://blossom.primal.net', 'https://blossom.band'])],
           ['admin_roles', JSON.stringify({})],
           ['feed_npubs', JSON.stringify([])],
@@ -476,53 +489,31 @@ export default function AdminSystemSettings() {
         </div>
       )}
 
-      {/* Environment Configuration (Read-only) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            Environment Configuration
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            These values are configured via environment variables and cannot be changed here.
-            To update them, modify your deployment environment variables and restart the service.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <div className="p-3 bg-muted/50 rounded-lg border">
-              <div className="text-xs font-medium text-muted-foreground mb-1">Primary Relay (VITE_DEFAULT_RELAY)</div>
-              <div className="font-mono text-sm break-all">
-                {import.meta.env.VITE_DEFAULT_RELAY || <span className="text-muted-foreground italic">Not configured</span>}
-              </div>
-            </div>
-
-            <div className="p-3 bg-muted/50 rounded-lg border">
-              <div className="text-xs font-medium text-muted-foreground mb-1">Remote Nostr.json (VITE_REMOTE_NOSTR_JSON_URL)</div>
-              <div className="font-mono text-sm break-all">
-                {import.meta.env.VITE_REMOTE_NOSTR_JSON_URL || <span className="text-muted-foreground italic">Not configured</span>}
-              </div>
-            </div>
-
-            <div className="p-3 bg-muted/50 rounded-lg border">
-              <div className="text-xs font-medium text-muted-foreground mb-1">Master Pubkey (VITE_MASTER_PUBKEY)</div>
-              <div className="font-mono text-sm break-all">
-                {import.meta.env.VITE_MASTER_PUBKEY || <span className="text-muted-foreground italic">Not configured</span>}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Relay Configuration */}
       <Card>
         <CardHeader>
-          <CardTitle>Additional Publishing Relays</CardTitle>
+          <CardTitle>Relay Configuration</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Add additional relays for publishing content. The primary relay (from environment variables) is always included first.
-          </p>
+          <div>
+            <Label htmlFor="defaultRelay">Primary Relay</Label>
+            <Input
+              id="defaultRelay"
+              value={siteConfig.defaultRelay}
+              onChange={(e) => setSiteConfig(prev => ({ ...prev, defaultRelay: e.target.value }))}
+              placeholder="wss://relay.example.com"
+              disabled={!isMasterUser}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              This relay is used as the primary source for reading and publishing site content.
+            </p>
+            {!siteConfig.defaultRelay?.trim() && (
+              <div className="flex items-center gap-2 mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 rounded-md text-sm border border-amber-200 dark:border-amber-800">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                <span>Warning: No default relay configured. The site may not be able to read content.</span>
+              </div>
+            )}
+          </div>
 
           <div>
             <Label htmlFor="publishRelays">Additional Publishing Relays</Label>
