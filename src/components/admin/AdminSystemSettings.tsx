@@ -424,7 +424,6 @@ export default function AdminSystemSettings() {
                 { id: '2', name: 'Events', href: '/events', isSubmenu: false },
                 { id: '3', name: 'Blog', href: '/blog', isSubmenu: false },
                 { id: '6', name: 'Feed', href: '/feed', isSubmenu: false },
-                { id: '4', name: 'About', href: '/about', isSubmenu: false },
                 { id: '5', name: 'Contact', href: '/contact', isSubmenu: false },
               ]
             }),

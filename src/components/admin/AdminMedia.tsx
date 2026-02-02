@@ -24,13 +24,15 @@ import {
   Play,
   List,
   LayoutGrid,
-  RefreshCw
+  RefreshCw,
+  User
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BlossomUploader } from '@nostrify/nostrify/uploaders';
+import { Switch } from '@/components/ui/switch';
 
 // --- Types ---
 
@@ -249,6 +251,7 @@ function BrowseMediaSection() {
   }, [config.siteConfig?.blossomRelays, config.siteConfig?.defaultRelay, config.siteConfig?.excludedBlossomRelays]);
 
   const [selectedRelay, setSelectedRelay] = useState<string>('');
+  const [myMediaOnly, setMyMediaOnly] = useState(true);
 
   useEffect(() => {
     if (!selectedRelay && blossomRelays.length > 0) {
@@ -259,9 +262,10 @@ function BrowseMediaSection() {
   const [mediaType, setMediaType] = useState<'all' | 'image' | 'video'>('all');
 
   const { data: blobs, isLoading, error, refetch } = useQuery({
-    queryKey: ['blossom-blobs', selectedRelay, user?.pubkey],
+    queryKey: ['blossom-blobs', selectedRelay, user?.pubkey, myMediaOnly],
     queryFn: async () => {
-      if (!selectedRelay || !user?.pubkey) return [];
+      if (!selectedRelay) return [];
+      if (myMediaOnly && !user?.pubkey) return [];
 
       const headers: Record<string, string> = {};
 
@@ -270,7 +274,7 @@ function BrowseMediaSection() {
         try {
           const authEvent = await user.signer.signEvent({
             kind: 24242, // Blossom List
-            content: 'List my blobs',
+            content: myMediaOnly ? 'List my blobs' : 'List all blobs',
             tags: [
               ['t', 'list'],
             ],
@@ -283,11 +287,16 @@ function BrowseMediaSection() {
         }
       }
 
-      const response = await fetch(`${selectedRelay}/list/${user.pubkey}`, { headers });
+      // When myMediaOnly is true, use /list/{pubkey}, otherwise try /list/all or just /list
+      const listUrl = myMediaOnly
+        ? `${selectedRelay}/list/${user?.pubkey}`
+        : `${selectedRelay}/list/all`;
+
+      const response = await fetch(listUrl, { headers });
       if (!response.ok) throw new Error('Failed to fetch blobs');
       return (await response.json()) as BlossomBlob[];
     },
-    enabled: !!selectedRelay && !!user?.pubkey
+    enabled: !!selectedRelay && (!myMediaOnly || !!user?.pubkey)
   });
 
   const filteredBlobs = useMemo(() => {
@@ -314,6 +323,16 @@ function BrowseMediaSection() {
           <div className="flex items-center justify-between">
             <CardTitle>Browse Media</CardTitle>
             <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mr-4">
+                <Label htmlFor="my-media-only" className="text-sm cursor-pointer whitespace-nowrap">
+                  My media only
+                </Label>
+                <Switch
+                  id="my-media-only"
+                  checked={myMediaOnly}
+                  onCheckedChange={setMyMediaOnly}
+                />
+              </div>
               <Button
                 variant={viewMode === 'list' ? 'default' : 'outline'}
                 size="icon"

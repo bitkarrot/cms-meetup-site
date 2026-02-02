@@ -17,7 +17,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
-import { Plus, Edit, Trash2, Eye, Layout, Share2, Globe, User, Filter } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, Layout, Share2, Globe, User, Filter, Library } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -26,6 +26,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useQuery } from '@tanstack/react-query';
 import { useUploadFile } from '@/hooks/useUploadFile';
 import { useToast } from '@/hooks/useToast';
+import { MediaSelectorDialog } from './MediaSelectorDialog';
 
 interface StaticPage {
   id: string;
@@ -150,6 +151,7 @@ export default function AdminPages() {
   const [editingPage, setEditingPage] = useState<StaticPage | null>(null);
   const [selectedRelays, setSelectedRelays] = useState<string[]>([]);
   const [filterByNostrJson, setFilterByNostrJson] = useState(false);
+  const [showMediaSelector, setShowMediaSelector] = useState(false);
   const [formData, setFormData] = useState({
     path: '',
     content: '',
@@ -380,6 +382,20 @@ export default function AdminPages() {
                         className="min-h-[300px] font-mono"
                         required
                       />
+                      <div className="flex items-center gap-2 mt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowMediaSelector(true)}
+                        >
+                          <Library className="h-4 w-4 mr-2" />
+                          Media Library
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          Insert images from your media library into the content
+                        </span>
+                      </div>
                     </TabsContent>
                     <TabsContent value="preview" className="mt-2">
                       <div className="min-h-[300px] p-4 border rounded-md prose prose-sm dark:prose-invert max-w-none bg-white dark:bg-slate-950 overflow-auto">
@@ -392,6 +408,15 @@ export default function AdminPages() {
                       </div>
                     </TabsContent>
                   </Tabs>
+                  <MediaSelectorDialog
+                    open={showMediaSelector}
+                    onOpenChange={setShowMediaSelector}
+                    onSelect={(url) => {
+                      setFormData(prev => ({ ...prev, content: prev.content + `\n![](${url})\n` }));
+                      setShowMediaSelector(false);
+                    }}
+                    title="Select Image for Page Content"
+                  />
                 </div>
 
                 <div className="space-y-3 pt-4 border-t">
