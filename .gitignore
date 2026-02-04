@@ -33,3 +33,6 @@ yarn.lock
 !.env.example
 .env*.local
 .trunk
+
+# MCP configuration (may contain API keys)
+.mcp.json

@@ -20,6 +20,7 @@ import AdminMediaPage from "./pages/admin/AdminMediaPage";
 import AdminProfilePage from "./pages/admin/AdminProfilePage";
 import AdminLoginPage from "./pages/admin/AdminLoginPage";
 import AdminHelpPage from "./pages/admin/AdminHelpPage";
+import AdminScheduledPage from "./pages/admin/AdminScheduledPage";
 
 // Public pages
 import EventsPage from "./pages/EventsPage";
@@ -62,6 +63,7 @@ export function AppRouter() {
           <Route index element={<AdminPage />} />
           <Route path="notes" element={<AdminNotesPage />} />
           <Route path="blog" element={<AdminBlogPage />} />
+          <Route path="scheduled" element={<AdminScheduledPage />} />
           <Route path="events" element={<AdminEventsPage />} />
           <Route path="feed" element={<AdminFeedPage />} />
           <Route path="zaplytics" element={<AdminZaplyticsPage />} />

@@ -8,6 +8,7 @@ import { LoginArea } from '@/components/auth/LoginArea';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAppContext } from '@/hooks/useAppContext';
 import { useAdminAuth } from '@/hooks/useRemoteNostrJson';
+import { isInsForgeConfigured } from '@/lib/insforge';
 import {
   LayoutDashboard,
   FileText,
@@ -24,7 +25,8 @@ import {
   Zap,
   FileImage,
   MessageCircle,
-  HelpCircle
+  HelpCircle,
+  Clock
 } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -40,22 +42,26 @@ export default function AdminLayout() {
   const masterPubkey = (import.meta.env.VITE_MASTER_PUBKEY || '').toLowerCase().trim();
   const isMasterUser = user?.pubkey.toLowerCase().trim() === masterPubkey;
   const canAccessSettings = isMasterUser || (isAdmin && readOnlyEnabled);
+  const insForgeEnabled = isInsForgeConfigured();
 
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { name: 'Notes', href: '/admin/notes', icon: MessageCircle },
     { name: 'Blog Posts', href: '/admin/blog', icon: FileText },
+    ...(insForgeEnabled ? [
+      { name: 'Scheduled', href: '/admin/scheduled', icon: Clock },
+    ] : []),
     { name: 'Events', href: '/admin/events', icon: Calendar },
     { name: 'Feed', href: '/admin/feed', icon: Rss },
     { name: 'Zaplytics', href: '/admin/zaplytics', icon: Zap },
     { name: 'Media', href: '/admin/media', icon: FileImage },
     { name: 'Pages', href: '/admin/pages', icon: FileCode },
-    { name: 'Help', href: '/admin/help', icon: HelpCircle },
     ...(canAccessSettings ? [
       { name: 'Site Settings', href: '/admin/settings', icon: Settings },
       { name: 'Admin Settings', href: '/admin/system-settings', icon: Shield }
     ] : []),
     { name: 'View Site', href: '/', icon: Home },
+    { name: 'Help', href: '/admin/help', icon: HelpCircle },
   ];
 
   return (

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { nip19 } from 'nostr-tools';
+import { useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,8 +12,13 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useDefaultRelay } from '@/hooks/useDefaultRelay';
 import { useToast } from '@/hooks/useToast';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Edit, Trash2, Eye, Layout, Share2, Search, Image as ImageIcon, Library, Loader2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, Layout, Share2, Search, Image as ImageIcon, Library, Loader2, Clock } from 'lucide-react';
 import { MediaSelectorDialog } from './MediaSelectorDialog';
+import { SchedulePicker } from './SchedulePicker';
+import { useCreateScheduledPost, useUpdateScheduledPost } from '@/hooks/useScheduledPosts';
+import { isInsForgeConfigured } from '@/lib/insforge';
+import type { ScheduleConfig } from '@/components/admin/SchedulePicker';
+import type { NostrEvent } from '@/types/scheduled';
 import { BlossomUploader } from '@nostrify/nostrify/uploaders';
 import { useAppContext } from '@/hooks/useAppContext';
 import {
@@ -135,6 +141,7 @@ function BlogPostCard({ post, user, usernameSearch, onEdit, onDelete }: {
 }
 
 export default function AdminBlog() {
+  const location = useLocation();
   const { nostr, publishRelays: initialPublishRelays } = useDefaultRelay();
   const { user } = useCurrentUser();
   const { config } = useAppContext();
@@ -142,6 +149,7 @@ export default function AdminBlog() {
   const { toast } = useToast();
   const [isCreating, setIsCreating] = useState(false);
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
+  const [editingScheduledPostId, setEditingScheduledPostId] = useState<string | null>(null);
   const [selectedRelays, setSelectedRelays] = useState<string[]>([]);
   const [usernameSearch, setUsernameSearch] = useState('');
   const [formData, setFormData] = useState({
@@ -153,6 +161,13 @@ export default function AdminBlog() {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [scheduleConfig, setScheduleConfig] = useState<ScheduleConfig>({
+    enabled: false,
+    scheduledFor: null,
+  });
+
+  const { mutateAsync: createScheduledPost, isPending: isScheduling } = useCreateScheduledPost();
+  const { mutateAsync: updateScheduledPost } = useUpdateScheduledPost();
 
   // Derive blossom relays (same as AdminNotes)
   const blossomRelays = useMemo(() => {
@@ -178,6 +193,28 @@ export default function AdminBlog() {
 
     return relays;
   }, [config.siteConfig?.blossomRelays, config.siteConfig?.defaultRelay, config.siteConfig?.excludedBlossomRelays]);
+
+  // Handle editing a scheduled post from the Scheduled page
+  useEffect(() => {
+    const editingScheduledPost = location.state?.editingScheduledPost;
+    if (editingScheduledPost && editingScheduledPost.kind === 30023) {
+      // Populate form with scheduled post data
+      setFormData({
+        title: editingScheduledPost.title || '',
+        content: editingScheduledPost.content || '',
+        published: true, // Blog posts are always published when scheduled
+      });
+      setEditingScheduledPostId(editingScheduledPost.scheduledPostId);
+      setScheduleConfig({
+        enabled: true,
+        scheduledFor: editingScheduledPost.scheduledFor ? new Date(editingScheduledPost.scheduledFor) : null,
+      });
+      setSelectedRelays(editingScheduledPost.relays || []);
+      setIsCreating(true);
+      // Clear the location state to prevent re-populating on re-renders
+      window.history.replaceState({}, '');
+    }
+  }, [location.state]);
 
   const handleFileUpload = async (files: File[]) => {
     if (!files || files.length === 0 || !user) return;
@@ -400,7 +437,9 @@ export default function AdminBlog() {
     }
     setIsCreating(false);
     setEditingPost(null);
+    setEditingScheduledPostId(null);
     setFormData({ title: '', content: '', published: false });
+    setScheduleConfig({ enabled: false, scheduledFor: null });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -416,6 +455,95 @@ export default function AdminBlog() {
       return;
     }
 
+    // Handle scheduled posts
+    if (scheduleConfig.enabled && scheduleConfig.scheduledFor && formData.published) {
+      try {
+        const dTag = editingPost?.d || `blog-${Date.now()}`;
+        const scheduledFor = scheduleConfig.scheduledFor;
+        const created_at = Math.floor(scheduledFor.getTime() / 1000);
+
+        const tags = [
+          ['d', dTag],
+          ['title', formData.title],
+          ['published', 'true'],
+          ['published_at', created_at.toString()],
+        ];
+
+        // Create and sign the event with future timestamp
+        const signedEvent = await user.signer.signEvent({
+          kind: 30023,
+          content: formData.content,
+          tags,
+          created_at,
+        }) as NostrEvent;
+
+        const relaysToUse = selectedRelays.length > 0 ? selectedRelays : initialPublishRelays;
+
+        // Update existing scheduled post or create new one
+        if (editingScheduledPostId) {
+          await updateScheduledPost({
+            id: editingScheduledPostId,
+            userPubkey: user.pubkey,
+            updates: {
+              signed_event: signedEvent,
+              scheduled_for: scheduledFor.toISOString(),
+              relays: relaysToUse,
+            },
+          });
+
+          toast({
+            title: 'Scheduled Post Updated',
+            description: `Your scheduled blog post has been updated for ${scheduledFor.toLocaleString()}`,
+          });
+        } else {
+          // Store in InsForge for scheduled publishing
+          await createScheduledPost({
+            signedEvent,
+            kind: 30023,
+            scheduledFor: scheduledFor,
+            relays: relaysToUse,
+            userPubkey: user.pubkey,
+          });
+
+          // If we were editing a private draft, delete it
+          if (editingPost && editingPost.kind === 31234) {
+            await publishEvent({
+              event: {
+                kind: 5,
+                tags: [
+                  ['e', editingPost.id],
+                  ['a', `31234:${user.pubkey}:${editingPost.d}`]
+                ],
+              },
+              relays: selectedRelays,
+            });
+          }
+
+          toast({
+            title: 'Post Scheduled',
+            description: `Your blog post will be published at ${scheduledFor.toLocaleString()}`,
+          });
+        }
+
+        setFormData({ title: '', content: '', published: false });
+        setIsCreating(false);
+        setEditingPost(null);
+        setEditingScheduledPostId(null);
+        setScheduleConfig({ enabled: false, scheduledFor: null });
+        refetch();
+        return;
+      } catch (error) {
+        console.error('Failed to schedule post:', error);
+        toast({
+          title: 'Error',
+          description: (error as Error).message || 'Failed to schedule post.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    // Normal publish or draft save
     try {
       const dTag = editingPost?.d || `blog-${Date.now()}`;
       const tags = [
@@ -506,6 +634,7 @@ export default function AdminBlog() {
       setFormData({ title: '', content: '', published: false });
       setIsCreating(false);
       setEditingPost(null);
+      setScheduleConfig({ enabled: false, scheduledFor: null });
       refetch();
     } catch (error: unknown) {
       console.error('Submit failed:', error);
@@ -534,6 +663,7 @@ export default function AdminBlog() {
     });
     setEditingPost(post);
     setIsCreating(true);
+    setScheduleConfig({ enabled: false, scheduledFor: null });
     window.scrollTo(0, 0);
   };
 
@@ -580,7 +710,7 @@ export default function AdminBlog() {
         <>
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold tracking-tight">
-              {editingPost ? 'Edit Post' : 'Create New Post'}
+              {editingScheduledPostId ? 'Edit Scheduled Post' : editingPost ? 'Edit Post' : 'Create New Post'}
             </h2>
             <Button variant="outline" onClick={handleCancel}>
               Back to List
@@ -711,6 +841,15 @@ export default function AdminBlog() {
                   <Label htmlFor="published">Publish immediately</Label>
                 </div>
 
+                {/* Schedule Picker */}
+                {isInsForgeConfigured() && (
+                  <SchedulePicker
+                    value={scheduleConfig}
+                    onChange={setScheduleConfig}
+                    disabled={isScheduling}
+                  />
+                )}
+
                 {/* Relay Selection */}
                 <div className="space-y-3 pt-4 border-t">
                   <div className="flex items-center gap-2 text-sm font-medium">
@@ -747,8 +886,14 @@ export default function AdminBlog() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button type="submit">
-                    {editingPost ? 'Update Post' : 'Create Post'}
+                  <Button type="submit" disabled={isScheduling}>
+                    {isScheduling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    {scheduleConfig.enabled ? (
+                      <>
+                        <Clock className="h-4 w-4 mr-2" />
+                        {editingScheduledPostId ? 'Update Scheduled Post' : 'Schedule Post'}
+                      </>
+                    ) : editingPost ? 'Update Post' : 'Create Post'}
                   </Button>
                   <Button
                     type="button"

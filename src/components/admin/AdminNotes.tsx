@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { nip19 } from 'nostr-tools';
+import { useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { NoteContent } from '@/components/NoteContent';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,7 +21,7 @@ import { useAuthor } from '@/hooks/useAuthor';
 import { useQuery } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 import { BlossomUploader } from '@nostrify/nostrify/uploaders';
-import type { NostrEvent } from '@nostrify/nostrify';
+import type { NostrEvent as NostrifyEvent } from '@nostrify/nostrify';
 import {
   Plus,
   Edit,
@@ -34,9 +35,15 @@ import {
   Smile,
   Loader2,
   Filter,
-  Library
+  Library,
+  Clock
 } from 'lucide-react';
 import { MediaSelectorDialog } from './MediaSelectorDialog';
+import { SchedulePicker } from './SchedulePicker';
+import { useCreateScheduledPost, useUpdateScheduledPost } from '@/hooks/useScheduledPosts';
+import { isInsForgeConfigured } from '@/lib/insforge';
+import type { ScheduleConfig } from '@/components/admin/SchedulePicker';
+import type { NostrEvent } from '@/types/scheduled';
 import {
   Tooltip,
   TooltipContent,
@@ -298,6 +305,7 @@ function NoteCard({
 // --- Main Component ---
 
 export default function AdminNotes() {
+  const location = useLocation();
   const { nostr, publishRelays: initialPublishRelays } = useDefaultRelay();
   const { user } = useCurrentUser();
   const { mutateAsync: publishEvent, isPending } = useNostrPublish();
@@ -307,6 +315,7 @@ export default function AdminNotes() {
   const [activeTab, setActiveTab] = useState<'drafts' | 'published'>('published');
   const [isCreating, setIsCreating] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [editingScheduledPostId, setEditingScheduledPostId] = useState<string | null>(null);
   const [content, setContent] = useState('');
   const [editorTab, setEditorTab] = useState<'edit' | 'preview'>('edit');
   const [selectedRelays, setSelectedRelays] = useState<string[]>([]);
@@ -321,6 +330,13 @@ export default function AdminNotes() {
     replies: false
   });
   const [showMediaSelector, setShowMediaSelector] = useState(false);
+  const [scheduleConfig, setScheduleConfig] = useState<ScheduleConfig>({
+    enabled: false,
+    scheduledFor: null,
+  });
+
+  const { mutateAsync: createScheduledPost, isPending: isScheduling } = useCreateScheduledPost();
+  const { mutateAsync: updateScheduledPost } = useUpdateScheduledPost();
 
   const gateway = config.siteConfig?.nip19Gateway || 'https://nostr.at';
 
@@ -434,6 +450,25 @@ export default function AdminNotes() {
     }
   }, [initialPublishRelays, selectedRelays.length]);
 
+  // Handle editing a scheduled post from the Scheduled page
+  useEffect(() => {
+    const editingScheduledPost = location.state?.editingScheduledPost;
+    if (editingScheduledPost && editingScheduledPost.kind === 1) {
+      // Populate form with scheduled post data
+      setContent(editingScheduledPost.content || '');
+      setEditingScheduledPostId(editingScheduledPost.scheduledPostId);
+      setScheduleConfig({
+        enabled: true,
+        scheduledFor: editingScheduledPost.scheduledFor ? new Date(editingScheduledPost.scheduledFor) : null,
+      });
+      setSelectedRelays(editingScheduledPost.relays || []);
+      setIsCreating(true);
+      setEditorTab('edit');
+      // Clear the location state to prevent re-populating on re-renders
+      window.history.replaceState({}, '');
+    }
+  }, [location.state]);
+
   // Check if content is dirty
   const isDirty = useMemo(() => {
     if (editingNote) {
@@ -460,8 +495,10 @@ export default function AdminNotes() {
     }
     setIsCreating(false);
     setEditingNote(null);
+    setEditingScheduledPostId(null);
     setContent('');
     setEditorTab('edit');
+    setScheduleConfig({ enabled: false, scheduledFor: null });
   };
 
   const handleFileUpload = async (files: File[]) => {
@@ -561,6 +598,73 @@ export default function AdminNotes() {
   const handleSubmit = async (asDraft: boolean) => {
     if (!user || !content.trim()) return;
 
+    // If scheduling is enabled and not saving as draft
+    if (scheduleConfig.enabled && scheduleConfig.scheduledFor && !asDraft) {
+      try {
+        // Create pre-signed event with future timestamp
+        const scheduledFor = scheduleConfig.scheduledFor;
+        const created_at = Math.floor(scheduledFor.getTime() / 1000);
+
+        // Create and sign the event with future timestamp
+        const signedEvent = await user.signer.signEvent({
+          kind: 1,
+          content: content,
+          tags: [],
+          created_at,
+        }) as NostrEvent;
+
+        const relaysToUse = selectedRelays.length > 0 ? selectedRelays : initialPublishRelays;
+
+        // Update existing scheduled post or create new one
+        if (editingScheduledPostId) {
+          await updateScheduledPost({
+            id: editingScheduledPostId,
+            userPubkey: user.pubkey,
+            updates: {
+              signed_event: signedEvent,
+              scheduled_for: scheduledFor.toISOString(),
+              relays: relaysToUse,
+            },
+          });
+
+          toast({
+            title: 'Scheduled Post Updated',
+            description: `Your scheduled note has been updated for ${scheduledFor.toLocaleString()}`,
+          });
+        } else {
+          // Store in InsForge for scheduled publishing
+          await createScheduledPost({
+            signedEvent,
+            kind: 1,
+            scheduledFor: scheduledFor,
+            relays: relaysToUse,
+            userPubkey: user.pubkey,
+          });
+
+          toast({
+            title: 'Note Scheduled',
+            description: `Your note will be published at ${scheduledFor.toLocaleString()}`,
+          });
+        }
+
+        setContent('');
+        setIsCreating(false);
+        setEditingNote(null);
+        setEditingScheduledPostId(null);
+        setScheduleConfig({ enabled: false, scheduledFor: null });
+        return;
+      } catch (error) {
+        console.error('Failed to schedule note:', error);
+        toast({
+          title: 'Error',
+          description: (error as Error).message || 'Failed to schedule note.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    // Normal publish or draft save
     try {
       if (asDraft) {
         const draftEvent = {
@@ -623,6 +727,7 @@ export default function AdminNotes() {
       setContent('');
       setIsCreating(false);
       setEditingNote(null);
+      setScheduleConfig({ enabled: false, scheduledFor: null });
       refetchAll();
     } catch (error) {
       console.error('Failed to save/publish note:', error);
@@ -668,6 +773,7 @@ export default function AdminNotes() {
     setEditingNote(note);
     setContent(note.content);
     setIsCreating(true);
+    setScheduleConfig({ enabled: false, scheduledFor: null });
     window.scrollTo(0, 0);
   };
 
@@ -680,7 +786,7 @@ export default function AdminNotes() {
         <>
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold tracking-tight">
-              {editingNote ? 'Edit Note' : 'Create New Note'}
+              {editingScheduledPostId ? 'Edit Scheduled Post' : editingNote ? 'Edit Note' : 'Create New Note'}
             </h2>
             <Button variant="outline" onClick={handleCancel}>
               Back to List
@@ -720,6 +826,15 @@ export default function AdminNotes() {
                   </div>
                 </TabsContent>
               </Tabs>
+
+              {/* Schedule Picker */}
+              {isInsForgeConfigured() && (
+                <SchedulePicker
+                  value={scheduleConfig}
+                  onChange={setScheduleConfig}
+                  disabled={isPending || isScheduling}
+                />
+              )}
 
               {/* Relay Selection */}
               <div className="space-y-3 pt-4 border-t">
@@ -883,16 +998,27 @@ export default function AdminNotes() {
                   <Button
                     variant="secondary"
                     onClick={() => handleSubmit(true)}
-                    disabled={isPending || !content.trim()}
+                    disabled={isPending || isScheduling || !content.trim()}
                   >
                     Save Draft
                   </Button>
                   <Button
                     onClick={() => handleSubmit(false)}
-                    disabled={isPending || !content.trim()}
+                    disabled={isPending || isScheduling || !content.trim()}
                   >
-                    {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    {editingNote?.isDraft ? 'Publish Note' : editingNote ? 'Update Note' : 'Post Note'}
+                    {isPending || isScheduling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    {scheduleConfig.enabled ? (
+                      <>
+                        <Clock className="h-4 w-4 mr-2" />
+                        {editingScheduledPostId ? 'Update Scheduled Post' : 'Schedule Note'}
+                      </>
+                    ) : editingNote?.isDraft ? (
+                      'Publish Note'
+                    ) : editingNote ? (
+                      'Update Note'
+                    ) : (
+                      'Post Note'
+                    )}
                   </Button>
                 </div>
               </div>
@@ -908,7 +1034,7 @@ export default function AdminNotes() {
                 Create and manage your short-form notes (Kind 1).
               </p>
             </div>
-            <Button onClick={() => { setEditingNote(null); setContent(''); setIsCreating(true); }}>
+            <Button onClick={() => { setEditingNote(null); setContent(''); setScheduleConfig({ enabled: false, scheduledFor: null }); setIsCreating(true); }}>
               <Plus className="h-4 w-4 mr-2" />
               New Note
             </Button>
