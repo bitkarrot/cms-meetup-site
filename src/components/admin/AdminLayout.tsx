@@ -26,7 +26,8 @@ import {
   FileImage,
   MessageCircle,
   HelpCircle,
-  Clock
+  Clock,
+  ClipboardList
 } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -56,6 +57,7 @@ export default function AdminLayout() {
     { name: 'Zaplytics', href: '/admin/zaplytics', icon: Zap },
     { name: 'Media', href: '/admin/media', icon: FileImage },
     { name: 'Pages', href: '/admin/pages', icon: FileCode },
+    { name: 'Forms', href: '/admin/forms', icon: ClipboardList },
     ...(canAccessSettings ? [
       { name: 'Site Settings', href: '/admin/settings', icon: Settings },
       { name: 'Admin Settings', href: '/admin/system-settings', icon: Shield }
