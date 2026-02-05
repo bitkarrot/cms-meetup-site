@@ -425,6 +425,7 @@ function EmbeddedForm({ formId, pubkey }: { formId: string; pubkey: string }) {
       const tags: string[][] = [
         ['d', `${formEvent.id}-${Date.now()}`],
         ['e', formEvent.eventId],
+        ['a', `30168:${formEvent.pubkey}:${formEvent.id}`],
         ['p', formEvent.pubkey],
         ['alt', `Response to form: ${formEvent.formData.name}`],
         ...formEvent.relays.map((relay) => ['relay', relay]),

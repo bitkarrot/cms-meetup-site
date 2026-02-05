@@ -193,6 +193,7 @@ function FormCard({
   onShare,
   onLinkPage,
   onViewResponses,
+  responsesCount,
 }: {
   form: NostrForm;
   user: { pubkey: string } | null;
@@ -202,6 +203,7 @@ function FormCard({
   onShare: (form: NostrForm) => void;
   onLinkPage: (form: NostrForm) => void;
   onViewResponses: (form: NostrForm) => void;
+  responsesCount: number;
 }) {
   const { data: authorData } = useAuthor(form.pubkey);
   const metadata = authorData?.metadata;
@@ -271,7 +273,12 @@ function FormCard({
                 <AvatarImage src={metadata?.picture} alt={displayName} />
                 <AvatarFallback><User className="h-3 w-3" /></AvatarFallback>
               </Avatar>
-              <span className="text-sm text-muted-foreground">{displayName}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">{displayName}</span>
+                <Badge variant="secondary" className="h-5 px-1.5 text-[10px] bg-primary/10 text-primary border-primary/20">
+                  {responsesCount} responses
+                </Badge>
+              </div>
             </div>
             {form.description && (
               <p className="text-sm text-muted-foreground line-clamp-2">{form.description}</p>
@@ -614,7 +621,10 @@ const ResponseViewer: React.FC<ResponseViewerProps> = ({ form }) => {
     queryFn: async () => {
       const signal = AbortSignal.timeout(10000);
       const address = `30168:${form.pubkey}:${form.id}`;
-      const filters = [{ kinds: [30169], '#e': [form.eventId] }, { kinds: [30169], '#a': [address] }];
+      const filters = [
+        { kinds: [30169], '#e': [form.eventId, form.id] },
+        { kinds: [30169], '#a': [address] }
+      ];
 
       // Query multiple relays to improve reliability
       const relaysToQuery = Array.from(new Set([
@@ -836,7 +846,7 @@ const ResponseViewer: React.FC<ResponseViewerProps> = ({ form }) => {
 
 // Main AdminForms Component
 export default function AdminForms() {
-  const { nostr, publishRelays: initialPublishRelays } = useDefaultRelay();
+  const { nostr, poolNostr, publishRelays: initialPublishRelays } = useDefaultRelay();
   const { user } = useCurrentUser();
   const { mutate: publishEvent } = useNostrPublish();
   const { toast } = useToast();
@@ -856,6 +866,7 @@ export default function AdminForms() {
   const [selectedForm, setSelectedForm] = useState<NostrForm | null>(null);
   const [linkedPath, setLinkedPath] = useState('');
   const [isPublishing, setIsPublishing] = useState(false);
+  const [editingFormResponseCount, setEditingFormResponseCount] = useState<number>(0);
 
   // Form builder state
   const [formName, setFormName] = useState('');
@@ -874,7 +885,7 @@ export default function AdminForms() {
   }, [initialPublishRelays, selectedRelays.length]);
 
   // Fetch forms from Nostr
-  const { data: allForms, refetch } = useQuery({
+  const { data: allForms, isLoading, refetch } = useQuery({
     queryKey: ['admin-forms'],
     staleTime: 0,
     gcTime: 0,
@@ -912,6 +923,68 @@ export default function AdminForms() {
         } as NostrForm;
       });
     },
+  });
+
+  // Fetch response counts for all forms
+  const { data: responseCounts } = useQuery({
+    queryKey: ['form-response-counts', allForms?.map(f => f.eventId).join(',')],
+    enabled: !!allForms && allForms.length > 0,
+    queryFn: async () => {
+      const signal = AbortSignal.timeout(10000);
+      const addresses = allForms!.map(f => `30168:${f.pubkey}:${f.id}`);
+      const eventIds = allForms!.map(f => f.eventId);
+      const filters = [
+        { kinds: [30169], '#a': addresses },
+        { kinds: [30169], '#e': eventIds }
+      ];
+
+      // Query multiple relays to improve reliability
+      const relaysToQuery = Array.from(new Set([
+        ...allForms!.flatMap(f => f.relays),
+        import.meta.env.VITE_DEFAULT_RELAY
+      ])).filter(Boolean);
+
+      const queryRelay = async (relayUrl: string) => {
+        try {
+          const r = (poolNostr as any).relay(relayUrl);
+          return await r.query(filters, { signal });
+        } catch (e) {
+          return [];
+        }
+      };
+
+      const results = await Promise.allSettled([
+        nostr.query(filters, { signal }),
+        ...relaysToQuery.map(url => queryRelay(url))
+      ]);
+
+      const allEvents = results
+        .filter((r): r is PromiseFulfilledResult<any[]> => r.status === 'fulfilled')
+        .flatMap(r => r.value);
+
+      // Deduplicate by ID
+      const uniqueEvents = Array.from(new Map(allEvents.map(e => [e.id, e])).values());
+
+      const counts: Record<string, number> = {};
+      uniqueEvents.forEach(event => {
+        const aTag = event.tags.find(([t]) => t === 'a')?.[1];
+        if (aTag) {
+          counts[aTag] = (counts[aTag] || 0) + 1;
+        } else {
+          // Fallback to #e tagging if #a is missing
+          const eTag = event.tags.find(([t]) => t === 'e')?.[1];
+          if (eTag) {
+            const form = allForms?.find(f => f.eventId === eTag || f.id === eTag);
+            if (form) {
+              const address = `30168:${form.pubkey}:${form.id}`;
+              counts[address] = (counts[address] || 0) + 1;
+            }
+          }
+        }
+      });
+      return counts;
+    },
+    refetchInterval: 30000, // Refresh counts every 30s
   });
 
   // Filter forms based on nostr.json users
@@ -952,6 +1025,7 @@ export default function AdminForms() {
     setEditingForm(null);
     setIsCreating(false);
     setIsPublishing(false);
+    setEditingFormResponseCount(0);
   }, []);
 
   // Cancel form editing
@@ -1166,6 +1240,7 @@ export default function AdminForms() {
       encrypted: !!form.settings?.encrypted,
     });
     setEditingForm(form);
+    setEditingFormResponseCount(responseCounts?.[`30168:${form.pubkey}:${form.id}`] || 0);
     setIsCreating(true);
     window.scrollTo(0, 0);
   };
@@ -1362,6 +1437,15 @@ export default function AdminForms() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {editingForm && editingFormResponseCount > 0 && (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+                      <div className="text-sm text-amber-800 dark:text-amber-200">
+                        <p className="font-bold">Form has {editingFormResponseCount} responses</p>
+                        <p>Editing the form fields may make existing responses difficult to display if field IDs change. Use caution when removing or replacing fields.</p>
+                      </div>
+                    </div>
+                  )}
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="form-name">Form Name *</Label>
@@ -1580,13 +1664,26 @@ export default function AdminForms() {
               <FormCard
                 key={form.eventId}
                 form={form}
-                user={user || null}
+                user={user as any || null}
                 isAdmin={isAdmin}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
+                onEdit={() => {
+                  setFormName(form.name);
+                  setFormDescription(form.description || '');
+                  setFormFields([...form.fields]);
+                  setFormSettings({ encrypted: !!(form.settings as any)?.encrypted });
+                  setEditingForm(form);
+                  setEditingFormResponseCount(responseCounts?.[`30168:${form.pubkey}:${form.id}`] || 0);
+                  setIsCreating(true);
+                  window.scrollTo(0, 0);
+                }}
+                onDelete={(form) => {
+                  setSelectedForm(form);
+                  setDeleteDialogOpen(true);
+                }}
                 onShare={handleShare}
                 onLinkPage={handleLinkPage}
                 onViewResponses={handleViewResponses}
+                responsesCount={responseCounts?.[`30168:${form.pubkey}:${form.id}`] || 0}
               />
             ))}
 
