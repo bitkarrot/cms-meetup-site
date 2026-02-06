@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/useToast';
-import { isInsForgeConfigured } from '@/lib/insforge';
+import { isSchedulerEnabled } from '@/lib/scheduler';
 import {
   Clock,
   Calendar,
@@ -204,8 +204,8 @@ export default function AdminScheduledPage() {
 
   const filteredPosts = scheduledPosts?.filter((post) => post.status === activeTab) || [];
 
-  // Check if InsForge is configured
-  if (!isInsForgeConfigured()) {
+  // Check if Scheduler is enabled
+  if (!isSchedulerEnabled()) {
     return (
       <Card>
         <CardContent className="pt-6 text-center space-y-4">
@@ -213,12 +213,8 @@ export default function AdminScheduledPage() {
           <div>
             <h3 className="text-lg font-semibold">Scheduled Posts Not Configured</h3>
             <p className="text-muted-foreground mt-2">
-              To enable scheduled posts, configure the following environment variables:
+              The scheduler is not enabled. Please check your Swarm Relay configuration.
             </p>
-            <code className="block mt-2 text-xs bg-muted p-2 rounded text-left">
-              INSFORGE_BASE_URL=https://your-app.insforge.app<br />
-              INSFORGE_ANON_KEY=your-anon-key
-            </code>
           </div>
         </CardContent>
       </Card>

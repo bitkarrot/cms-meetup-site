@@ -8,7 +8,6 @@ import { LoginArea } from '@/components/auth/LoginArea';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAppContext } from '@/hooks/useAppContext';
 import { useAdminAuth } from '@/hooks/useRemoteNostrJson';
-import { isInsForgeConfigured } from '@/lib/insforge';
 import {
   LayoutDashboard,
   FileText,
@@ -53,15 +52,13 @@ export default function AdminLayout() {
   const masterPubkey = (import.meta.env.VITE_MASTER_PUBKEY || '').toLowerCase().trim();
   const isMasterUser = user?.pubkey.toLowerCase().trim() === masterPubkey;
   const canAccessSettings = isMasterUser || (isAdmin && readOnlyEnabled);
-  const insForgeEnabled = isInsForgeConfigured();
 
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { name: 'Notes', href: '/admin/notes', icon: MessageCircle },
     { name: 'Blog Posts', href: '/admin/blog', icon: FileText },
-    ...(insForgeEnabled ? [
-      { name: 'Scheduled', href: '/admin/scheduled', icon: Clock },
-    ] : []),
+    { name: 'Scheduled', href: '/admin/scheduled', icon: Clock },
+
     { name: 'Events', href: '/admin/events', icon: Calendar },
     { name: 'Feed', href: '/admin/feed', icon: Rss },
     { name: 'Zaplytics', href: '/admin/zaplytics', icon: Zap },

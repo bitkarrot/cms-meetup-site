@@ -16,7 +16,7 @@ import { Plus, Edit, Trash2, Eye, Layout, Share2, Search, Image as ImageIcon, Li
 import { MediaSelectorDialog } from './MediaSelectorDialog';
 import { SchedulePicker } from './SchedulePicker';
 import { useCreateScheduledPost, useUpdateScheduledPost } from '@/hooks/useScheduledPosts';
-import { isInsForgeConfigured } from '@/lib/insforge';
+import { isSchedulerEnabled } from '@/lib/scheduler';
 import type { ScheduleConfig } from '@/components/admin/SchedulePicker';
 import type { NostrEvent } from '@/types/scheduled';
 import { BlossomUploader } from '@nostrify/nostrify/uploaders';
@@ -842,7 +842,7 @@ export default function AdminBlog() {
                 </div>
 
                 {/* Schedule Picker */}
-                {isInsForgeConfigured() && (
+                {isSchedulerEnabled() && (
                   <SchedulePicker
                     value={scheduleConfig}
                     onChange={setScheduleConfig}

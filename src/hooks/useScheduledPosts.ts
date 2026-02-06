@@ -1,17 +1,87 @@
 /**
- * Hook for managing scheduled posts via InsForge backend
+ * Hook for managing scheduled posts via Swarm Relay Backend
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { insforge } from '@/lib/insforge';
 import type {
   ScheduledPost,
   CreateScheduledPostInput,
   ScheduledPostStats,
   NostrEvent,
 } from '@/types/scheduled';
+import { Event } from 'nostr-tools';
 
-const TABLE_NAME = 'scheduled_posts';
+// API base URL - strictly use Swarm API
+// Fallback to /api if VITE_SWARM_API_URL is not set, assuming proxy or same origin
+const API_BASE = import.meta.env.VITE_SWARM_API_URL || '/api';
+
+/**
+ * Fetch wrapper that adds NIP-98 Authorization header
+ */
+async function fetchWithNip98(urlStr: string, method: string, body?: any) {
+  const url = urlStr.startsWith('http') ? urlStr : `${API_BASE}${urlStr}`;
+
+  // 1. Create event kind 27235
+  // We need to access window.nostr for signing
+  const nostr = (window as any).nostr;
+  if (!nostr) {
+    throw new Error('Nostr extension not found');
+  }
+
+  const pubkey = await nostr.getPublicKey();
+
+  // Create the event structure
+  // content, keys, created_at, kind, tags
+  const event = {
+    kind: 27235,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [
+      ['u', url],
+      ['method', method],
+    ],
+    content: '',
+    pubkey: pubkey,
+  };
+
+  // 2. Sign
+  // @ts-ignore
+  const signed = await nostr.signEvent(event);
+
+  // 3. Create Authorization header
+  const token = btoa(JSON.stringify(signed));
+
+  // 4. Fetch
+  const options: RequestInit = {
+    method,
+    headers: {
+      'Authorization': `Nostr ${token}`,
+      'Content-Type': 'application/json',
+    },
+  };
+
+  if (body) {
+    options.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(url, options);
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`API Error: ${response.status} ${text}`);
+  }
+
+  // Handle 204 No Content or empty responses
+  if (response.status === 204) {
+    return null;
+  }
+
+  // Only try to parse JSON if there is content
+  const contentType = response.headers.get("content-type");
+  if (contentType && contentType.indexOf("application/json") !== -1) {
+    return response.json();
+  }
+  return response.text();
+}
 
 // ============================================================================
 // Queries
@@ -26,20 +96,15 @@ export function useScheduledPosts(userPubkey: string | undefined, status?: strin
     queryFn: async () => {
       if (!userPubkey) return [];
 
-      let query = insforge.database
-        .from(TABLE_NAME)
-        .select('*')
-        .eq('user_pubkey', userPubkey)
-        .order('scheduled_for', { ascending: true });
+      const posts = await fetchWithNip98('/scheduler/list', 'GET') as ScheduledPost[];
 
+      // Filter by status if requested (API returns all)
       if (status) {
-        query = query.eq('status', status);
+        return posts.filter(p => p.status === status);
       }
 
-      const { data, error } = await query;
-
-      if (error) throw error;
-      return (data || []) as ScheduledPost[];
+      // Sort by scheduled_for
+      return posts.sort((a, b) => new Date(a.scheduled_for).getTime() - new Date(b.scheduled_for).getTime());
     },
     enabled: !!userPubkey,
     refetchInterval: 30000, // Refetch every 30 seconds
@@ -55,12 +120,7 @@ export function useScheduledPostsStats(userPubkey: string | undefined) {
     queryFn: async () => {
       if (!userPubkey) return { pending: 0, published: 0, failed: 0 };
 
-      const { data, error } = await insforge.database
-        .from(TABLE_NAME)
-        .select('status')
-        .eq('user_pubkey', userPubkey);
-
-      if (error) throw error;
+      const posts = await fetchWithNip98('/scheduler/list', 'GET') as ScheduledPost[];
 
       const stats: ScheduledPostStats = {
         pending: 0,
@@ -68,7 +128,7 @@ export function useScheduledPostsStats(userPubkey: string | undefined) {
         failed: 0,
       };
 
-      data?.forEach((post) => {
+      posts.forEach((post) => {
         if (post.status in stats) {
           stats[post.status as keyof ScheduledPostStats]++;
         }
@@ -89,15 +149,12 @@ export function useScheduledPost(id: string | undefined) {
     queryKey: ['scheduled-post', id],
     queryFn: async () => {
       if (!id) return null;
-
-      const { data, error } = await insforge.database
-        .from(TABLE_NAME)
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      return data as ScheduledPost;
+      // Inefficient but API doesn't support get-by-id yet
+      // We list all and find one. 
+      const posts = await fetchWithNip98('/scheduler/list', 'GET') as ScheduledPost[];
+      const post = posts.find(p => p.id === id);
+      if (!post) throw new Error('Post not found');
+      return post;
     },
     enabled: !!id,
   });
@@ -115,23 +172,16 @@ export function useCreateScheduledPost() {
 
   return useMutation({
     mutationFn: async (input: CreateScheduledPostInput) => {
-      const { signedEvent, kind, scheduledFor, relays, userPubkey } = input;
+      const { signedEvent, relays, scheduledFor } = input;
 
-      const { data, error } = await insforge.database
-        .from(TABLE_NAME)
-        .insert({
-          user_pubkey: userPubkey,
-          signed_event: signedEvent,
-          kind,
-          scheduled_for: scheduledFor.toISOString(),
-          relays,
-          status: 'pending',
-        })
-        .select()
-        .single();
+      const body = {
+        signed_event: signedEvent,
+        relays,
+        scheduled_for: scheduledFor.toISOString(),
+      };
 
-      if (error) throw error;
-      return data as ScheduledPost;
+      const result = await fetchWithNip98('/scheduler/schedule', 'POST', body);
+      return result as ScheduledPost;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
@@ -152,12 +202,7 @@ export function useDeleteScheduledPost() {
 
   return useMutation({
     mutationFn: async ({ id, userPubkey }: { id: string; userPubkey: string }) => {
-      const { error } = await insforge.database
-        .from(TABLE_NAME)
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      await fetchWithNip98(`/scheduler/delete?id=${id}`, 'DELETE');
       return id;
     },
     onSuccess: (_, variables) => {
@@ -173,6 +218,7 @@ export function useDeleteScheduledPost() {
 
 /**
  * Update a scheduled post (for rescheduling)
+ * Implemented as Delete old + Create new
  */
 export function useUpdateScheduledPost() {
   const queryClient = useQueryClient();
@@ -187,15 +233,23 @@ export function useUpdateScheduledPost() {
       userPubkey: string;
       updates: Partial<ScheduledPost>;
     }) => {
-      const { data, error } = await insforge.database
-        .from(TABLE_NAME)
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
 
-      if (error) throw error;
-      return data as ScheduledPost;
+      // 1. Delete old post
+      await fetchWithNip98(`/scheduler/delete?id=${id}`, 'DELETE');
+
+      // 2. Create new post
+      if (!updates.signed_event || !updates.scheduled_for || !updates.relays) {
+        throw new Error("Missing required fields for update (signed_event, scheduled_for, relays)");
+      }
+
+      const body = {
+        signed_event: updates.signed_event,
+        relays: updates.relays,
+        scheduled_for: updates.scheduled_for,
+      };
+
+      const result = await fetchWithNip98('/scheduler/schedule', 'POST', body);
+      return result as ScheduledPost;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
@@ -261,27 +315,5 @@ export function getTimeRemaining(scheduledFor: string): {
     text: `in ${seconds} second${seconds > 1 ? 's' : ''}`,
     isPast: false,
     seconds,
-  };
-}
-
-/**
- * Create a pre-signed Nostr event with a future timestamp
- *
- * Note: This creates the event structure, but signing must be done
- * by the caller using the user's signer.
- */
-export function createScheduledEvent(params: {
-  kind: number;
-  content: string;
-  tags?: string[][];
-  scheduledAt: Date;
-}): Omit<NostrEvent, 'id' | 'pubkey' | 'sig'> {
-  const { kind, content, tags = [], scheduledAt } = params;
-
-  return {
-    kind,
-    content,
-    tags,
-    created_at: Math.floor(scheduledAt.getTime() / 1000),
   };
 }
