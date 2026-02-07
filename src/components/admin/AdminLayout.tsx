@@ -26,7 +26,8 @@ import {
   MessageCircle,
   HelpCircle,
   Clock,
-  ClipboardList
+  ClipboardList,
+  RefreshCw,
 } from 'lucide-react';
 
 export default function AdminLayout() {
@@ -65,6 +66,7 @@ export default function AdminLayout() {
     { name: 'Media', href: '/admin/media', icon: FileImage },
     { name: 'Pages', href: '/admin/pages', icon: FileCode },
     { name: 'Forms', href: '/admin/forms', icon: ClipboardList },
+    { name: 'Sync Content', href: '/admin/sync-content', icon: RefreshCw },
     ...(canAccessSettings ? [
       { name: 'Site Settings', href: '/admin/settings', icon: Settings },
       { name: 'Admin Settings', href: '/admin/system-settings', icon: Shield }

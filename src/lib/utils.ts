@@ -23,7 +23,7 @@ export function formatPubkey(pubkey: string) {
  */
 export function normalizeToHexPubkeys(ids: (string | undefined | null)[]): string[] {
   if (!ids || !Array.isArray(ids)) return [];
-  
+
   return ids
     .filter((id): id is string => !!id && typeof id === 'string')
     .map(id => {
@@ -42,4 +42,24 @@ export function normalizeToHexPubkeys(ids: (string | undefined | null)[]): strin
       }
     })
     .filter((pk): pk is string => !!pk);
+}
+
+export function normalizeRelayUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return trimmed;
+
+  // If it already has a protocol, return as-is
+  if (trimmed.includes('://')) {
+    return trimmed;
+  }
+
+  // For localhost or IP addresses, don't auto-add protocol - let user specify
+  if (trimmed.startsWith('localhost') || trimmed.match(/^\d+\.\d+\.\d+\.\d+/)) {
+    // If user types localhost:3777 without protocol, they probably want ws://
+    // But we'll let them be explicit about it
+    return trimmed;
+  }
+
+  // For regular domains, add wss:// prefix
+  return `wss://${trimmed}`;
 }

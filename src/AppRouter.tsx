@@ -22,6 +22,7 @@ import AdminLoginPage from "./pages/admin/AdminLoginPage";
 import AdminHelpPage from "./pages/admin/AdminHelpPage";
 import AdminScheduledPage from "./pages/admin/AdminScheduledPage";
 import AdminFormsPage from "./pages/admin/AdminFormsPage";
+import AdminSyncPage from "./pages/admin/AdminSyncPage";
 
 // Public pages
 import EventsPage from "./pages/EventsPage";
@@ -75,6 +76,7 @@ export function AppRouter() {
           <Route path="zaplytics" element={<AdminZaplyticsPage />} />
           <Route path="pages" element={<AdminPagesPage />} />
           <Route path="forms" element={<AdminFormsPage />} />
+          <Route path="sync-content" element={<AdminSyncPage />} />
           <Route path="settings" element={<AdminSettingsPage />} />
           <Route path="system-settings" element={<AdminSystemSettingsPage />} />
           <Route path="media" element={<AdminMediaPage />} />
