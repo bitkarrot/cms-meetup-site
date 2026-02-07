@@ -128,7 +128,7 @@ export default function AdminZaplytics() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Zaplytics</h2>
           <p className="text-muted-foreground">
-            Analyze zap earnings for your community members.
+            Analyze zap earnings for users selected in the Feed section.
           </p>
         </div>
 

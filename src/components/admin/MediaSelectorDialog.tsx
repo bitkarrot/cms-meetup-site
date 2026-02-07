@@ -18,7 +18,8 @@ import {
   Play,
   AlertCircle,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  User
 } from 'lucide-react';
 import { useAppContext } from '@/hooks/useAppContext';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -28,6 +29,7 @@ import { BlossomUploader } from '@nostrify/nostrify/uploaders';
 import { useToast } from '@/hooks/useToast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 
 interface BlossomBlob {
   url: string;
@@ -59,6 +61,14 @@ export function MediaSelectorDialog({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [mediaType, setMediaType] = useState<'all' | 'image' | 'video'>('all');
   const [selectedRelay, setSelectedRelay] = useState<string>('');
+  const [myMediaOnly, setMyMediaOnly] = useState(true);
+
+  // Reset myMediaOnly when dialog opens
+  useEffect(() => {
+    if (open) {
+      setMyMediaOnly(true);
+    }
+  }, [open]);
 
   // Blossom relays logic (same as AdminMedia)
   const blossomRelays = useMemo(() => {
@@ -91,9 +101,10 @@ export function MediaSelectorDialog({
   }, [blossomRelays, selectedRelay]);
 
   const { data: blobs, isLoading, error, refetch } = useQuery({
-    queryKey: ['blossom-blobs', selectedRelay, user?.pubkey],
+    queryKey: ['blossom-blobs', selectedRelay, user?.pubkey, myMediaOnly],
     queryFn: async () => {
-      if (!selectedRelay || !user?.pubkey) return [];
+      if (!selectedRelay) return [];
+      if (myMediaOnly && !user?.pubkey) return [];
 
       const headers: Record<string, string> = {};
 
@@ -101,7 +112,7 @@ export function MediaSelectorDialog({
         try {
           const authEvent = await user.signer.signEvent({
             kind: 24242,
-            content: 'List my blobs',
+            content: myMediaOnly ? 'List my blobs' : 'List all blobs',
             tags: [['t', 'list']],
             created_at: Math.floor(Date.now() / 1000),
           });
@@ -112,11 +123,16 @@ export function MediaSelectorDialog({
         }
       }
 
-      const response = await fetch(`${selectedRelay}/list/${user.pubkey}`, { headers });
+      // When myMediaOnly is true, use /list/{pubkey}, otherwise try /list/all
+      const listUrl = myMediaOnly
+        ? `${selectedRelay}/list/${user?.pubkey}`
+        : `${selectedRelay}/list/all`;
+
+      const response = await fetch(listUrl, { headers });
       if (!response.ok) throw new Error('Failed to fetch blobs');
       return (await response.json()) as BlossomBlob[];
     },
-    enabled: open && !!selectedRelay && !!user?.pubkey
+    enabled: open && !!selectedRelay && (!myMediaOnly || !!user?.pubkey)
   });
 
   const filteredBlobs = useMemo(() => {
@@ -211,6 +227,17 @@ export function MediaSelectorDialog({
                       <TabsTrigger value="video">Videos</TabsTrigger>
                     </TabsList>
                   </Tabs>
+                  <div className="flex items-center gap-2 ml-2 pl-2 border-l">
+                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                    <Label htmlFor="my-media-only-dialog" className="text-xs cursor-pointer whitespace-nowrap">
+                      My media only
+                    </Label>
+                    <Switch
+                      id="my-media-only-dialog"
+                      checked={myMediaOnly}
+                      onCheckedChange={setMyMediaOnly}
+                    />
+                  </div>
                   <Button
                     variant="outline"
                     size="icon"
@@ -256,7 +283,7 @@ export function MediaSelectorDialog({
                 ))}
               </div>
 
-              <div className="flex-1 overflow-y-auto min-h-[300px] border rounded-lg bg-card/50 p-4">
+              <div className="flex-1 overflow-y-auto min-h-[300px] max-h-[calc(90vh-350px)] border rounded-lg bg-card/50 p-4">
                 {isLoading ? (
                   <div className="h-full flex flex-col items-center justify-center space-y-4">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />

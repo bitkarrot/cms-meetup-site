@@ -17,6 +17,7 @@ import { AuthorInfo } from '@/components/AuthorInfo';
 import { useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Link } from 'react-router-dom';
@@ -586,15 +587,38 @@ export default function AdminEvents() {
                         className="min-h-[200px] font-mono"
                         required
                       />
+                      <div className="flex items-center gap-2 mt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowMediaSelector(true)}
+                        >
+                          <Library className="h-4 w-4 mr-2" />
+                          Media Library
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          Insert images from your media library into the description
+                        </span>
+                      </div>
                     </TabsContent>
                     <TabsContent value="preview" className="mt-2">
                       <div className="min-h-[200px] p-4 border rounded-md prose prose-sm dark:prose-invert max-w-none bg-white dark:bg-slate-950 overflow-auto">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
                           {formData.description || "*Nothing to preview*"}
                         </ReactMarkdown>
                       </div>
                     </TabsContent>
                   </Tabs>
+                  <MediaSelectorDialog
+                    open={showMediaSelector}
+                    onOpenChange={setShowMediaSelector}
+                    onSelect={(url) => {
+                      setFormData(prev => ({ ...prev, description: prev.description + `\n![](${url})\n` }));
+                      setShowMediaSelector(false);
+                    }}
+                    title="Select Image for Description"
+                  />
                 </div>
 
                 {/* Relay Selection */}
