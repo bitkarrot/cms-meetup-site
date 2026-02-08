@@ -1,7 +1,9 @@
 import { ReactNode } from 'react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { LoginArea } from '@/components/auth/LoginArea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 interface AdminProtectionProps {
   children: ReactNode;
@@ -31,6 +33,11 @@ export function AdminProtection({ children }: AdminProtectionProps) {
             </p>
             <div className="flex justify-center">
               <LoginArea className="w-full" />
+            </div>
+            <div className="mt-12">
+              <Button className="w-full" variant="outline" size="sm">
+                <Link to="/">Back to Home</Link>
+              </Button>
             </div>
           </CardContent>
         </Card>

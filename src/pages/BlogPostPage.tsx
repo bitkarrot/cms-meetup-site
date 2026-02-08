@@ -20,7 +20,7 @@ export default function BlogPostPage() {
     queryKey: ['blog-post', postId, config.siteConfig?.adminRoles],
     queryFn: async () => {
       if (!postId) return null;
-      const [event] = await nostr.query([
+      const [event] = await nostr!.query([
         { ids: [postId], kinds: [30023] }
       ]);
       
@@ -45,6 +45,7 @@ export default function BlogPostPage() {
         image: event.tags.find(([name]) => name === 'image')?.[1],
       };
     },
+    enabled: !!nostr,
   });
 
   useSeoMeta({

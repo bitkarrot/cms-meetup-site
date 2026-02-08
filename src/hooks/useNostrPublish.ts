@@ -45,7 +45,7 @@ export function useNostrPublish(): UseMutationResult<NostrEvent, Error, { event:
           // Default publish (to all pool relays)
           await (nostr as { event: (e: NostrEvent, options?: { signal?: AbortSignal }) => Promise<void> }).event(signedEvent, { signal: AbortSignal.timeout(5000) });
         }
-        
+
         return signedEvent;
       } else {
         throw new Error("User is not logged in");

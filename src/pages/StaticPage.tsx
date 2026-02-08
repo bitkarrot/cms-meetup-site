@@ -48,7 +48,7 @@ export default function StaticPage({ pathOverride }: { pathOverride?: string }) 
       console.log('StaticPage: Querying default relay only');
       
       // Query only the default relay
-      const events = await defaultRelay.query(filters, { signal });
+      const events = await defaultRelay!.query(filters, { signal });
       
       console.log('StaticPage: Found events:', events);
       
@@ -63,7 +63,7 @@ export default function StaticPage({ pathOverride }: { pathOverride?: string }) 
         })
         .sort((a, b) => b.created_at - a.created_at)[0] || null;
     },
-    enabled: !!fullPath,
+    enabled: !!defaultRelay && !!fullPath,
     staleTime: 0,
     retry: 2,
   });

@@ -314,7 +314,7 @@ const Index = () => {
     queryKey: ['events', config.siteConfig?.defaultRelay, config.siteConfig?.adminRoles], 
     queryFn: async () => {
       const signal = AbortSignal.timeout(2000);
-      const eventList = await nostr.query([
+      const eventList = await nostr!.query([
         { kinds: [31922, 31923], limit: 50 }
       ], { signal });
       
@@ -361,6 +361,7 @@ const Index = () => {
         };
       });
     },
+    enabled: !!nostr,
   });
 
   // Fetch blog posts
@@ -368,7 +369,7 @@ const Index = () => {
     queryKey: ['blog-posts', config.siteConfig?.defaultRelay, config.siteConfig?.adminRoles],
     queryFn: async () => {
       const signal = AbortSignal.timeout(2000);
-      const postList = await nostr.query([
+      const postList = await nostr!.query([
         { kinds: [30023], limit: 50 }
       ], { signal });
       
@@ -394,6 +395,7 @@ const Index = () => {
         pubkey: event.pubkey,
       }));
     },
+    enabled: !!nostr,
   });
 
   const siteTitle = config.siteConfig?.title || 'Community Meetup Site';

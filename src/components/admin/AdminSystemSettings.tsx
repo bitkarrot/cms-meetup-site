@@ -497,16 +497,14 @@ export default function AdminSystemSettings() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <Label htmlFor="defaultRelay">Primary Relay</Label>
+            <Label htmlFor="defaultRelay">Primary Relay (Default)</Label>
             <Input
               id="defaultRelay"
               value={siteConfig.defaultRelay}
-              onChange={(e) => setSiteConfig(prev => ({ ...prev, defaultRelay: e.target.value }))}
-              placeholder="wss://relay.example.com"
-              disabled={!isMasterUser}
+              disabled
             />
             <p className="text-xs text-muted-foreground mt-1">
-              This relay is used as the primary source for reading and publishing site content.
+              This relay is used as the primary source for reading and publishing site content. Configured via <code>VITE_DEFAULT_RELAY</code> environment variable.
             </p>
             {!siteConfig.defaultRelay?.trim() && (
               <div className="flex items-center gap-2 mt-2 p-2 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 rounded-md text-sm border border-amber-200 dark:border-amber-800">

@@ -33,7 +33,7 @@ export default function BlogPage() {
     queryKey: ['blog-posts', config.siteConfig?.adminRoles],
     queryFn: async () => {
       const signal = AbortSignal.timeout(2000);
-      const postList = await nostr.query([
+      const postList = await nostr!.query([
         { kinds: [30023], limit: 100 }
       ], { signal });
       
@@ -58,6 +58,7 @@ export default function BlogPage() {
         pubkey: event.pubkey,
       })) as BlogPost[];
     },
+    enabled: !!nostr,
   });
 
   const filteredPosts = posts.filter(post => 

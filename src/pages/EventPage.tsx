@@ -25,7 +25,7 @@ export default function EventPage() {
       if (!eventId) return null;
       
       const signal = AbortSignal.timeout(2000);
-      const events = await nostr.query([
+      const events = await nostr!.query([
         { ids: [eventId], limit: 1 }
       ], { signal });
       
@@ -71,7 +71,7 @@ export default function EventPage() {
         kind: e.kind,
       };
     },
-    enabled: !!eventId,
+    enabled: !!nostr && !!eventId,
   });
 
   // Update SEO meta tags when event is loaded

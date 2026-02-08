@@ -20,6 +20,9 @@ import AdminMediaPage from "./pages/admin/AdminMediaPage";
 import AdminProfilePage from "./pages/admin/AdminProfilePage";
 import AdminLoginPage from "./pages/admin/AdminLoginPage";
 import AdminHelpPage from "./pages/admin/AdminHelpPage";
+import AdminScheduledPage from "./pages/admin/AdminScheduledPage";
+import AdminFormsPage from "./pages/admin/AdminFormsPage";
+import AdminSyncPage from "./pages/admin/AdminSyncPage";
 
 // Public pages
 import EventsPage from "./pages/EventsPage";
@@ -29,6 +32,8 @@ import BlogPostPage from "./pages/BlogPostPage";
 import FeedPage from "./pages/FeedPage";
 import StaticPage from "./pages/StaticPage";
 import ProfilePage from "./pages/ProfilePage";
+import FormPage from "./pages/FormPage";
+import FormOrStaticPage from "./pages/FormOrStaticPage";
 
 function AdminRoutes() {
   return <AdminWrapper />;
@@ -57,15 +62,21 @@ export function AppRouter() {
         <Route path="/contact" element={<StaticPage pathOverride="/contact" />} />
         <Route path="/p/:path" element={<StaticPage />} />
 
+        {/* Form routes */}
+        <Route path="/form/:formId" element={<FormPage />} />
+
         {/* Admin routes */}
         <Route path="/admin" element={<AdminRoutes />}>
           <Route index element={<AdminPage />} />
           <Route path="notes" element={<AdminNotesPage />} />
           <Route path="blog" element={<AdminBlogPage />} />
+          <Route path="scheduled" element={<AdminScheduledPage />} />
           <Route path="events" element={<AdminEventsPage />} />
           <Route path="feed" element={<AdminFeedPage />} />
           <Route path="zaplytics" element={<AdminZaplyticsPage />} />
           <Route path="pages" element={<AdminPagesPage />} />
+          <Route path="forms" element={<AdminFormsPage />} />
+          <Route path="sync-content" element={<AdminSyncPage />} />
           <Route path="settings" element={<AdminSettingsPage />} />
           <Route path="system-settings" element={<AdminSystemSettingsPage />} />
           <Route path="media" element={<AdminMediaPage />} />
@@ -74,8 +85,8 @@ export function AppRouter() {
         </Route>
         <Route path="/admin/login" element={<AdminLoginPage />} />
 
-        {/* Dynamic Static Pages (catch-all for routes not matched above) */}
-        <Route path="/:path" element={<StaticPage />} />
+        {/* Dynamic Static Pages or LinkedForms (catch-all for routes not matched above) */}
+        <Route path="/:path" element={<FormOrStaticPage />} />
 
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />

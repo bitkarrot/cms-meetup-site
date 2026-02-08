@@ -11,10 +11,12 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useDefaultRelay } from '@/hooks/useDefaultRelay';
 import { useAuthor } from '@/hooks/useAuthor';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Edit, Trash2, Calendar, MapPin, Share2, Eye, Layout, Search, ExternalLink, Library } from 'lucide-react';
+import { Plus, Edit, Trash2, Calendar, MapPin, Share2, Eye, Layout, Search, ExternalLink, Library, Filter } from 'lucide-react';
 import { MediaSelectorDialog } from './MediaSelectorDialog';
 import { AuthorInfo } from '@/components/AuthorInfo';
 import { useQuery } from '@tanstack/react-query';
+import { useRemoteNostrJson } from '@/hooks/useRemoteNostrJson';
+import { Switch } from '@/components/ui/switch';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -130,6 +132,8 @@ export default function AdminEvents() {
   const [eventType, setEventType] = useState<'date' | 'time'>('time');
   const [selectedRelays, setSelectedRelays] = useState<string[]>([]);
   const [usernameSearch, setUsernameSearch] = useState('');
+  const [filterByNostrJson, setFilterByNostrJson] = useState(false);
+  const { data: remoteNostrJson } = useRemoteNostrJson();
   const [formData, setFormData] = useState({
     title: '',
     summary: '',
@@ -156,7 +160,7 @@ export default function AdminEvents() {
     queryKey: ['admin-events'],
     queryFn: async () => {
       const signal = AbortSignal.timeout(2000);
-      const events = await nostr.query([
+      const events = await nostr!.query([
         { kinds: [31922, 31923], limit: 100 }
       ], { signal });
 
@@ -194,10 +198,18 @@ export default function AdminEvents() {
         };
       });
     },
+    enabled: !!nostr,
   });
 
-  // Note: We'll filter events client-side based on author metadata in the render
-  const events = allEvents;
+  // Filter events based on nostr.json users
+  const events = filterByNostrJson && remoteNostrJson?.names
+    ? allEvents?.filter(event => {
+      const normalizedPubkey = event.pubkey.toLowerCase().trim();
+      return Object.values(remoteNostrJson.names).some(
+        pubkey => pubkey.toLowerCase().trim() === normalizedPubkey
+      );
+    })
+    : allEvents;
 
   // Check if form is dirty
   const isDirty = editingEvent
@@ -666,6 +678,17 @@ export default function AdminEvents() {
                     className="pl-8"
                   />
                 </div>
+              </div>
+              <div className="flex items-center gap-2 mt-3">
+                <Switch
+                  id="filter-nostr-json-events"
+                  checked={filterByNostrJson}
+                  onCheckedChange={setFilterByNostrJson}
+                />
+                <Label htmlFor="filter-nostr-json-events" className="text-sm cursor-pointer flex items-center gap-2">
+                  <Filter className="h-3 w-3" />
+                  Show only users from nostr.json
+                </Label>
               </div>
             </div>
             <Button onClick={() => setIsCreating(true)}>

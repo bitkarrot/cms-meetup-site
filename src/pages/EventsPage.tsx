@@ -50,7 +50,7 @@ export default function EventsPage() {
     queryKey: ['events', appContext.siteConfig?.adminRoles],
     queryFn: async () => {
       const signal = AbortSignal.timeout(2000);
-      const eventList = await nostr.query([
+      const eventList = await nostr!.query([
         { kinds: [31922, 31923], limit: 100 }
       ], { signal });
       
@@ -96,6 +96,7 @@ export default function EventsPage() {
         };
       });
     },
+    enabled: !!nostr,
   });
 
   // Filter and sort events

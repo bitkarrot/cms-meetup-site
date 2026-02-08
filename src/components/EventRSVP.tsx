@@ -40,7 +40,7 @@ export default function EventRSVP({ event }: EventRSVPProps) {
     queryKey: ['event-rsvps', event.id],
     queryFn: async () => {
       const signal = AbortSignal.timeout(2000);
-      const events = await nostr.query([
+      const events = await nostr!.query([
         {
           kinds: [31925],
           '#a': [`${event.kind}:${event.author}:${event.d}`],
@@ -61,6 +61,7 @@ export default function EventRSVP({ event }: EventRSVPProps) {
       
       return Array.from(rsvpMap.values());
     },
+    enabled: !!nostr,
   });
 
   // Check if current user has already RSVPed

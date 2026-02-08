@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMemo, useEffect } from 'react';
+import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 import { type NostrEvent } from '@nostrify/nostrify';
+import { useInView } from 'react-intersection-observer';
 import { useSeoMeta } from '@unhead/react';
-import { LayoutGrid, Rss, AlertCircle } from 'lucide-react';
+import { LayoutGrid, Rss, AlertCircle, Loader2 } from 'lucide-react';
 
 import { useAppContext } from '@/hooks/useAppContext';
 import Navigation from '@/components/Navigation';
@@ -16,37 +17,49 @@ import { normalizeToHexPubkeys } from '@/lib/utils';
 export default function FeedPage() {
   const { config } = useAppContext();
   const { nostr } = useNostr();
-  
+
   const siteConfig = config.siteConfig;
-  
+
   const { feedNpubs, readFromPublishRelays, publishRelays } = useMemo(() => ({
     feedNpubs: siteConfig?.feedNpubs || [],
     readFromPublishRelays: siteConfig?.feedReadFromPublishRelays || false,
     publishRelays: siteConfig?.publishRelays || []
   }), [siteConfig?.feedNpubs, siteConfig?.feedReadFromPublishRelays, siteConfig?.publishRelays]);
-  
+
   const pubkeys = useMemo(() => {
     const pks = normalizeToHexPubkeys(feedNpubs);
     console.log('[FeedPage] Normalized pubkeys:', pks, 'from feedNpubs:', feedNpubs);
     return pks;
   }, [feedNpubs]);
-  
-  const { data: notes = [], isLoading, error } = useQuery<NostrEvent[]>({
+
+  const { ref: loadMoreRef, inView } = useInView();
+
+  const {
+    data: notesData,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage
+  } = useInfiniteQuery<NostrEvent[], Error, InfiniteData<NostrEvent[]>, any, number | undefined>({
     queryKey: ['feed-notes', pubkeys, readFromPublishRelays, publishRelays],
-    queryFn: async () => {
-      console.log('[FeedPage] queryFn triggered. Pubkeys:', pubkeys);
+    initialPageParam: undefined,
+    queryFn: async ({ pageParam }) => {
+      const until = pageParam;
+      console.log('[FeedPage] queryFn triggered. Pubkeys:', pubkeys, 'until:', until);
       if (pubkeys.length === 0) return [];
 
       const filter = {
         kinds: [1],
         authors: pubkeys,
-        limit: 50
+        limit: 25,
+        until
       };
 
       const signal = AbortSignal.timeout(10000);
-      
+
       let events: NostrEvent[] = [];
-      
+
       try {
         if (readFromPublishRelays && publishRelays.length > 0) {
           console.log('[FeedPage] Querying publish relays:', publishRelays);
@@ -63,11 +76,11 @@ export default function FeedPage() {
               }
             })
           );
-          
+
           const allEvents = results
             .filter((r): r is PromiseFulfilledResult<NostrEvent[]> => r.status === 'fulfilled')
             .flatMap(r => r.value);
-            
+
           console.log(`[FeedPage] Total events found across all relays: ${allEvents.length}`);
           // Deduplicate by ID
           const uniqueEvents = Array.from(new Map(allEvents.map(e => [e.id, e])).values());
@@ -85,9 +98,24 @@ export default function FeedPage() {
 
       return events.sort((a, b) => b.created_at - a.created_at);
     },
+    getNextPageParam: (lastPage) => {
+      if (lastPage.length < 25) return undefined;
+      return lastPage[lastPage.length - 1].created_at - 1;
+    },
     enabled: pubkeys.length > 0,
     staleTime: 60000, // 1 minute
   });
+
+  const notes = useMemo(() => {
+    return notesData?.pages.flat() || [];
+  }, [notesData]);
+
+  // Load more when scrolled to bottom
+  useEffect(() => {
+    if (inView && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   useSeoMeta({
     title: `Feed - ${config.siteConfig?.title || 'Community'}`,
@@ -97,7 +125,7 @@ export default function FeedPage() {
   return (
     <div className="min-h-screen bg-muted/30">
       <Navigation />
-      
+
       <main className="max-w-2xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -153,6 +181,28 @@ export default function FeedPage() {
             {notes.map((note) => (
               <FeedItem key={note.id} event={note} />
             ))}
+
+            {/* Infinite scroll marker */}
+            {notes.length > 0 && (
+              <div ref={loadMoreRef} className="py-12 flex flex-col items-center justify-center gap-4">
+                {isFetchingNextPage ? (
+                  <>
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground animate-pulse">Loading more notes...</p>
+                  </>
+                ) : hasNextPage ? (
+                  <div className="h-1.5 w-32 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-primary/30 animate-shimmer" />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4 opacity-40">
+                    <div className="h-px w-12 bg-muted-foreground" />
+                    <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">End of Feed</p>
+                    <div className="h-px w-12 bg-muted-foreground" />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>

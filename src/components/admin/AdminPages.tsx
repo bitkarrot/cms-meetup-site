@@ -167,7 +167,7 @@ export default function AdminPages() {
     gcTime: 0,
     queryFn: async () => {
       const signal = AbortSignal.timeout(5000);
-      const events = await nostr.query([
+      const events = await nostr!.query([
         { kinds: [34128], limit: 100 }
       ], { signal });
 
@@ -185,6 +185,7 @@ export default function AdminPages() {
         };
       }).filter(p => p.path);
     },
+    enabled: !!nostr,
   });
 
   // Filter pages based on nostr.json users
