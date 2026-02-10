@@ -582,7 +582,7 @@ export default function AdminSystemSettings() {
           <p className="text-sm">
             Your current nostr.json is located at:
             <b className="break-all">
-              {import.meta.env.VITE_REMOTE_NOSTR_JSON_URL || 'Not configured'}
+              {import.meta.env.VITE_REMOTE_NOSTR_JSON_URL || `${window.location.origin}/.well-known/nostr.json`}
             </b>
           </p>
           <p className="text-sm text-muted-foreground">
