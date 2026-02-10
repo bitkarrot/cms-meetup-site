@@ -256,7 +256,7 @@ export function MediaSelectorDialog({
                 ))}
               </div>
 
-              <div className="flex-1 overflow-y-auto min-h-[300px] border rounded-lg bg-card/50 p-4">
+              <div className="flex-1 overflow-y-auto min-h-[200px] max-h-[50vh] border rounded-lg bg-card/50 p-4">
                 {isLoading ? (
                   <div className="h-full flex flex-col items-center justify-center space-y-4">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
