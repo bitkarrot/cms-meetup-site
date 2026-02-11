@@ -31,7 +31,6 @@ export default function FeedPage() {
 
   const pubkeys = useMemo(() => {
     const pks = normalizeToHexPubkeys(feedNpubs);
-    console.log('[FeedPage] Normalized pubkeys:', pks, 'from feedNpubs:', feedNpubs);
     return pks;
   }, [feedNpubs]);
 
@@ -49,7 +48,6 @@ export default function FeedPage() {
     initialPageParam: undefined,
     queryFn: async ({ pageParam }) => {
       const until = pageParam;
-      console.log('[FeedPage] queryFn triggered. Pubkeys:', pubkeys, 'until:', until);
       if (pubkeys.length === 0) return [];
 
       const filter = {
@@ -68,13 +66,10 @@ export default function FeedPage() {
         // Combine NIP-65 relays with publish relays if the toggle is enabled
         const additionalRelays = new Set<string>(nip65ReadRelays);
         if (readFromPublishRelays && publishRelays.length > 0) {
-          console.log('[FeedPage] Also querying publish relays:', publishRelays);
           publishRelays.forEach((url: string) => additionalRelays.add(url));
         }
 
-        console.log('[FeedPage] Querying default relay + NIP-65 relays:', [...additionalRelays]);
         events = await queryWithNip65Fanout(nostr, [filter], [...additionalRelays], signal);
-        console.log(`[FeedPage] Final unique events count: ${events.length}`);
       } catch (err) {
         console.error('[FeedPage] Global query error:', err);
         throw err;

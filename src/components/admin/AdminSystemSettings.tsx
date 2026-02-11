@@ -401,7 +401,6 @@ export default function AdminSystemSettings() {
                 ]
               }
             });
-            console.log('[handleResetToDefaults] Relay metadata deletion event published');
           } catch (e) {
             console.error('[handleResetToDefaults] Failed to delete relay metadata:', e);
           }
@@ -448,7 +447,6 @@ export default function AdminSystemSettings() {
             tags: defaultConfigTags,
           }
         });
-        console.log('[handleResetToDefaults] Default configuration republished to relay');
       } catch (e) {
         console.error('[handleResetToDefaults] Failed to republish default config:', e);
       }

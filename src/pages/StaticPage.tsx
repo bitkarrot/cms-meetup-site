@@ -22,10 +22,8 @@ export default function StaticPage({ pathOverride }: { pathOverride?: string }) 
     if (!pathOverride && path) {
       try {
         nip19.decode(path);
-        const prefixes = ['npub', 'nprofile', 'note', 'nevent', 'naddr'];
-        if (prefixes.some(p => path.startsWith(p))) {
-          console.log('StaticPage: Detected NIP-19 identifier, delegating to NIP19Page');
-        }
+        const _prefixes = ['npub', 'nprofile', 'note', 'nevent', 'naddr'];
+        // NIP-19 identifier detected — handled by router
       } catch {
         // Not a valid NIP-19, continue as static page
       }
@@ -35,7 +33,6 @@ export default function StaticPage({ pathOverride }: { pathOverride?: string }) 
   const { data: pageEvent, isLoading: isEventLoading, error, refetch } = useQuery({
     queryKey: ['static-page', fullPath, appContext.siteConfig?.adminRoles],
     queryFn: async () => {
-      console.log('StaticPage: Querying for path:', fullPath);
       const signal = AbortSignal.timeout(5000);
       
       const unslashedPath = fullPath.startsWith('/') ? fullPath.slice(1) : fullPath;
@@ -45,13 +42,7 @@ export default function StaticPage({ pathOverride }: { pathOverride?: string }) 
         { kinds: [34128], '#d': [slashedPath, unslashedPath] }
       ];
       
-      console.log('StaticPage: Filters:', filters);
-      console.log('StaticPage: Querying default relay only');
-      
-      // Query only the default relay
       const events = await defaultRelay!.query(filters, { signal });
-      
-      console.log('StaticPage: Found events:', events);
       
       const adminRoles = appContext.siteConfig?.adminRoles || {};
       const masterPubkey = getMasterPubkey();

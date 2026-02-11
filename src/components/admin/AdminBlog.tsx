@@ -562,7 +562,6 @@ export default function AdminBlog() {
       ];
 
       if (formData.published) {
-        console.log('Publishing as Kind 30023');
         // Publish as Kind 30023 (Long-form Content)
         await publishEvent({
           event: {
@@ -592,7 +591,6 @@ export default function AdminBlog() {
 
         toast({ title: "Success", description: "Post published successfully." });
       } else {
-        console.log('Saving as Kind 31234 Draft');
         // Save as Kind 31234 (NIP-37 Draft Wrap) for privacy
         const draftEvent = {
           kind: 30023,

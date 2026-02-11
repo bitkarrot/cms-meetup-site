@@ -27,9 +27,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      staleTime: 0, // No caching
-      gcTime: 0, // Clear cache immediately
-      retry: false, // Don't retry failed requests
+      staleTime: 30000, // 30 seconds before data is considered stale
+      gcTime: 300000, // Keep cache for 5 minutes during navigation
+      retry: 1, // Retry once on failure (handles slow relay connections)
     },
   },
 });

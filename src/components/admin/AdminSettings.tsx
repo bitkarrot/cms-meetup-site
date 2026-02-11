@@ -413,12 +413,10 @@ export default function AdminSettings() {
   // but only if we're not currently saving or refreshing to avoid overwriting user input
   useEffect(() => {
     if (isSaving || isRefreshing) {
-      console.log('[AdminSettings] Skipping sync because isSaving/isRefreshing is true');
       return;
     }
 
     if (config.siteConfig) {
-      console.log('[AdminSettings] Syncing form state with updated config:', config.siteConfig);
       setSiteConfig(prev => ({
         ...prev,
         ...config.siteConfig,
@@ -592,8 +590,6 @@ export default function AdminSettings() {
         const relayFromEvent = loadedConfig.defaultRelay as string | undefined;
 
         if (envDefaultRelay && relayFromEvent && envDefaultRelay !== relayFromEvent) {
-          console.log('[AdminSettings] Relay in Nostr event', relayFromEvent, 'differs from default relay', envDefaultRelay);
-          console.log('[AdminSettings] Prioritizing environment variable over relay data');
           loadedConfig.defaultRelay = envDefaultRelay;
         }
 
@@ -666,7 +662,6 @@ export default function AdminSettings() {
 
     try {
       // Save site configuration as a replaceable event (kind 30078) following NIP-78
-      console.log('Saving config to Nostr and local context...', siteConfig);
       const scopedDTag = getSiteConfigDTag();
       const configTags = [
         ['d', scopedDTag],
@@ -703,7 +698,6 @@ export default function AdminSettings() {
       });
 
       // Update local app config
-      console.log('Updating AppContext with:', siteConfig);
       updateConfig((currentConfig) => ({
         ...currentConfig,
         siteConfig: {

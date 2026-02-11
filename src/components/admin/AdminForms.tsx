@@ -633,8 +633,6 @@ const ResponseViewer: React.FC<ResponseViewerProps> = ({ form }) => {
         defaultRelayUrl
       ])).filter(Boolean);
 
-      console.log(`[ResponseViewer] Querying responses for ${form.name} from relays:`, relaysToQuery);
-
       const queryRelay = async (relayUrl: string) => {
         try {
           const r = (poolNostr as any).relay(relayUrl);
@@ -656,8 +654,6 @@ const ResponseViewer: React.FC<ResponseViewerProps> = ({ form }) => {
 
       // Deduplicate by ID
       const uniqueEvents = Array.from(new Map(allEvents.map(e => [e.id, e])).values());
-      console.log(`[ResponseViewer] Found ${uniqueEvents.length} total responses across all relays.`);
-
       return uniqueEvents.map(event => {
         let answers = {};
         try {

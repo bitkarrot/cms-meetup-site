@@ -159,7 +159,7 @@ export default function AdminEvents() {
   const { data: allEvents, refetch } = useQuery({
     queryKey: ['admin-events'],
     queryFn: async () => {
-      const signal = AbortSignal.timeout(2000);
+      const signal = AbortSignal.timeout(5000);
       const events = await nostr!.query([
         { kinds: [31922, 31923], limit: 100 }
       ], { signal });

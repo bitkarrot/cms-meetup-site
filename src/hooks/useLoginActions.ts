@@ -39,8 +39,6 @@ export function useLoginActions() {
     },
     // Log out the current user and clear all sessions
     async logout(): Promise<void> {
-      console.log('[Logout] Starting aggressive logout...');
-      
       // 1. Clear TanStack Query cache first
       queryClient.clear();
 
@@ -54,8 +52,6 @@ export function useLoginActions() {
       
       // 4. Also clear any session-specific storage that might be used by signers
       sessionStorage.clear();
-
-      console.log('[Logout] Storage cleared, reloading page...');
 
       // 5. Small delay to ensure browser has processed the storage changes
       await new Promise(resolve => setTimeout(resolve, 200));

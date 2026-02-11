@@ -181,13 +181,10 @@ function useTweakCNTheme(themeUrl?: string) {
     }
 
     const fetchTheme = async () => {
-      console.log('[useTweakCNTheme] Fetching theme from:', themeUrl);
       try {
         const response = await fetch(themeUrl);
         if (!response.ok) throw new Error(`Failed to fetch theme: ${response.statusText}`);
         const themeData = await response.json();
-        console.log('[useTweakCNTheme] Received theme data:', themeData);
-
         const vars = themeData.cssVars || themeData;
 
         // Inject Google Fonts if the theme uses them
@@ -234,17 +231,13 @@ function useTweakCNTheme(themeUrl?: string) {
           cssVars += processThemeCss(themeData.css);
         }
 
-        console.log('[useTweakCNTheme] Injected CSS variables count:', cssVars.length);
-
         let styleTag = document.getElementById('tweakcn-theme') as HTMLStyleElement;
         if (!styleTag) {
           styleTag = document.createElement('style');
           styleTag.id = 'tweakcn-theme';
           document.head.appendChild(styleTag);
-          console.log('[useTweakCNTheme] Created new style tag');
         }
         styleTag.textContent = cssVars;
-        console.log('[useTweakCNTheme] Style tag updated successfully');
       } catch (error) {
         console.error('[useTweakCNTheme] Error applying TweakCN theme:', error);
       }
@@ -297,7 +290,6 @@ async function injectGoogleFonts(vars: any) {
     link.rel = 'stylesheet';
     link.href = googleFontsUrl;
     document.head.appendChild(link);
-    console.log('[useTweakCNTheme] Injected Google Fonts:', fontNames);
   } catch (error) {
     console.warn('[useTweakCNTheme] Failed to load Google Fonts:', error);
   }

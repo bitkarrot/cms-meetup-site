@@ -139,31 +139,13 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
     // For preset ranges, we need to be more strict about completeness
     // Only consider it complete if we actually have data going back to the time range boundary
     let hasCompleteCoverage: boolean;
-    let needsMoreData: boolean;
 
     if (isCustomRange && until) {
-      // For custom ranges, we have complete coverage if our oldest cached data 
-      // is older than or equal to the custom range start (cache covers the time period)
       const cacheCoversCustomRange = userCache.length > 0 && oldestCachedTimestamp <= since;
       hasCompleteCoverage = cacheCoversCustomRange;
-      needsMoreData = !cacheCoversCustomRange;
     } else {
-      // For preset ranges, only consider complete if we have data AND it goes back far enough
-      // This fixes the issue where 30d data was considered "complete" for 90d
       hasCompleteCoverage = userCache.length > 0 && oldestCachedTimestamp <= since;
-      needsMoreData = userCache.length === 0 || oldestCachedTimestamp > since;
     }
-
-    console.log(`Time range changed to ${timeRange} for ${pubkey}:`, {
-      totalCached: userCache.length,
-      filteredForTimeRange: filteredReceipts.length,
-      oldestCached: userCache.length > 0 ? new Date(Math.min(...userCache.map(r => r.created_at)) * 1000).toISOString() : 'none',
-      timeRangeSince: new Date(since * 1000).toISOString(),
-      timeRangeUntil: until ? new Date(until * 1000).toISOString() : 'none',
-      hasCompleteCoverage,
-      needsMoreData,
-      isCustomRange
-    });
 
     setState(prev => ({
       ...prev,
@@ -207,11 +189,6 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
     const currentState = stateRef.current;
 
     if (!pubkey || isLoadingRef.current || currentState.isComplete) {
-      console.log('Skipping loadMoreZaps:', {
-        noPubkey: !pubkey,
-        isLoading: isLoadingRef.current,
-        isComplete: currentState.isComplete
-      });
       return;
     }
 
@@ -222,21 +199,8 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
       currentState.consecutiveFailures >= ZAP_FETCH_CONFIG.MAX_CONSECUTIVE_FAILURES ||
       currentState.consecutiveZeroResults >= maxConsecutiveZeroResults
     )) {
-      console.log('Skipping automatic load:', {
-        autoLoadEnabled: currentState.autoLoadEnabled,
-        consecutiveFailures: currentState.consecutiveFailures,
-        consecutiveZeroResults: currentState.consecutiveZeroResults,
-        maxConsecutiveZeroResults
-      });
       return;
     }
-
-    console.log('Starting loadMoreZaps:', {
-      isAutomatic,
-      receiptsCount: currentState.receipts.length,
-      currentBatch: currentState.currentBatch,
-      isComplete: currentState.isComplete
-    });
 
     isLoadingRef.current = true;
     setState(prev => ({ ...prev, isLoading: true, error: null }));
@@ -261,7 +225,6 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
         } else {
           currentUntil = paginationUntil;
         }
-        console.log('Using pagination cursor from cache:', oldestTimestamp, '-> until:', currentUntil, 'custom range until:', until);
       }
 
       // Determine batch size based on detected relay limit
@@ -294,8 +257,6 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
         filter.since = since;
       }
 
-      console.log(`Fetching batch ${currentState.currentBatch + 1} for ${pubkey} with limit ${batchSize} (${isAutomatic ? 'auto' : 'manual'}):`, filter);
-
       const batchSignal = AbortSignal.any([
         abortControllerRef.current.signal,
         AbortSignal.timeout(ZAP_FETCH_CONFIG.TIMEOUT_MS)
@@ -308,8 +269,6 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
       const validReceipts = events.filter((event): event is ZapReceipt =>
         isValidZapReceipt(event as NostrEvent)
       ).sort((a, b) => b.created_at - a.created_at);
-
-      console.log(`Batch ${currentState.currentBatch + 1} complete for ${pubkey}: ${validReceipts.length} receipts (${isAutomatic ? 'auto' : 'manual'})`);
 
       // Update state synchronously
       setState(prev => {
@@ -360,17 +319,6 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
           }
         }
 
-        console.log('Updating state:', {
-          newReceiptsCount: validReceipts.length,
-          totalReceiptsInCache: allReceipts.length,
-          filteredForTimeRange: filteredReceipts.length,
-          detectedLimit,
-          expectedBatchSize,
-          isComplete,
-          nextBatch: prev.currentBatch + 1,
-          isAutomatic
-        });
-
         return {
           ...prev,
           receipts: filteredReceipts,
@@ -396,39 +344,14 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
             validReceipts.length >= 100
           );
 
-        console.log('Auto-load decision:', {
-          isAutomatic,
-          validReceiptsLength: validReceipts.length,
-          batchSize,
-          shouldContinueAutoLoad,
-          fullBatchThreshold: batchSize * 0.9,
-          minReasonableAmount: 100
-        });
-
         if (shouldContinueAutoLoad) {
-          console.log('Scheduling next auto-load batch in', ZAP_FETCH_CONFIG.BATCH_DELAY_MS, 'ms');
           autoLoadTimeoutRef.current = setTimeout(() => {
-            console.log('Auto-load timeout triggered, checking conditions...');
-
-            // Check if we should still auto-load (conditions might have changed)
-            if (isLoadingRef.current) {
-              console.log('Already loading, skipping auto-load');
-              return;
-            }
-
-            console.log('Calling loadMoreZaps(true) from timeout');
-            // Call loadMoreZaps directly as an automatic load
+            if (isLoadingRef.current) return;
             loadMoreZaps(true).catch((error) => {
               console.error('Auto-load failed:', error);
             });
           }, ZAP_FETCH_CONFIG.BATCH_DELAY_MS);
         } else {
-          console.log('Auto-loading stopped:', {
-            validReceiptsLength: validReceipts.length,
-            batchSize,
-            reason: validReceipts.length < 100 ? 'too few results' : 'other condition not met'
-          });
-
           // Ensure isLoadingRef is set to false when auto-loading stops
           isLoadingRef.current = false;
         }
@@ -468,11 +391,7 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
     // For custom ranges, check if we need to load data based on cache coverage
     if (isCustomRange) {
       const cacheCoversCustomRange = userCache.length > 0 && oldestCachedTimestamp <= since;
-      if (cacheCoversCustomRange) {
-        console.log('Cache covers custom time range, skipping auto-load');
-        return;
-      }
-      console.log('Cache does not cover custom time range, checking if we should load');
+      if (cacheCoversCustomRange) return;
     }
 
     // Calculate the correct data for the current time range
@@ -504,54 +423,17 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
       !isCompleteForThisRange &&
       currentState.autoLoadEnabled;
 
-    console.log('Auto-loading decision breakdown:', {
-      needsMoreData,
-      isLoading: currentState.isLoading,
-      isCompleteForThisRange,
-      autoLoadEnabled: currentState.autoLoadEnabled,
-      finalDecision: shouldStartLoading
-    });
-
-    console.log('Auto-loading check for time range:', timeRange, {
-      isCustomRange,
-      hasDataForTimeRange,
-      relevantOldestTimestamp: oldestCachedTimestamp > 0 ? new Date(oldestCachedTimestamp * 1000).toISOString() : 'none',
-      timeRangeSince: new Date(since * 1000).toISOString(),
-      timeRangeUntil: until ? new Date(until * 1000).toISOString() : 'none',
-      needsMoreData,
-      shouldStartLoading,
-      receiptsLength: currentState.receipts.length,
-      cacheLength: currentState.allReceiptsCache.length,
-      isComplete: currentState.isComplete,
-      isCompleteForThisRange,
-      isLoading: currentState.isLoading,
-      autoLoadEnabled: currentState.autoLoadEnabled,
-      consecutiveFailures: currentState.consecutiveFailures
-    });
-
     if (shouldStartLoading) {
-      if (!hasDataForTimeRange) {
-        console.log('Auto-starting initial zap loading for time range:', timeRange);
-      } else {
-        console.log('Auto-starting zap loading for extended time range:', timeRange);
-      }
-
       // For custom ranges, trigger immediately to avoid cleanup race conditions
       if (isCustomRange) {
-        console.log('Triggering immediate auto-load for custom range:', timeRange);
-        // Use setTimeout with minimal delay to avoid blocking the UI
         setTimeout(() => {
-          console.log('Immediate timeout firing for custom range:', timeRange);
           loadMoreZaps(true).catch(error => {
             console.error('Auto-load failed for custom range:', error);
           });
         }, 100);
       } else {
-        // Use normal delay for preset ranges
         const delay = hasDataForTimeRange ? ZAP_FETCH_CONFIG.AUTO_LOAD_DELAY_MS * 2 : ZAP_FETCH_CONFIG.AUTO_LOAD_DELAY_MS;
-        console.log(`Setting timeout for auto-load in ${delay}ms for ${timeRange}`);
         autoLoadTimeoutRef.current = setTimeout(() => {
-          console.log('Timeout firing! Triggering auto-load for time range:', timeRange);
           try {
             loadMoreZaps(true);
           } catch (error) {
@@ -559,16 +441,11 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
           }
         }, delay);
       }
-    } else if (hasDataForTimeRange && !needsMoreData) {
-      console.log('Already have complete data for time range:', timeRange);
-    } else {
-      console.log('Not starting auto-load. Conditions not met.');
     }
 
     // Cleanup timeout only if we're not setting a new one in this run
     return () => {
       if (autoLoadTimeoutRef.current && !isCustomRange) {
-        console.log('Cleaning up timeout for', timeRange);
         clearTimeout(autoLoadTimeoutRef.current);
         autoLoadTimeoutRef.current = null;
       }
@@ -591,10 +468,7 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
         : 0;
 
       const cacheCoversCustomRange = currentState.allReceiptsCache.length > 0 && oldestCachedTimestamp <= since;
-      if (cacheCoversCustomRange) {
-        console.log('Cache covers custom time range, skipping extended auto-load');
-        return;
-      }
+      if (cacheCoversCustomRange) return;
     }
 
     const oldestCachedTimestamp = currentState.allReceiptsCache.length > 0
@@ -617,28 +491,9 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
       currentState.consecutiveZeroResults < maxConsecutiveZeroResults; // NEW: Stop if too many zero results
 
     if (needsExtendedData) {
-      console.log('Time range extension detected - scheduling auto-load for:', timeRange, {
-        oldestCached: new Date(oldestCachedTimestamp * 1000).toISOString(),
-        timeRangeSince: new Date(since * 1000).toISOString(),
-        gapMinutes: Math.round((oldestCachedTimestamp - since) / 60),
-        withinTolerance: withinBoundaryTolerance,
-        consecutiveZeroResults: currentState.consecutiveZeroResults
-      });
       autoLoadTimeoutRef.current = setTimeout(() => {
-        console.log('Auto-loading triggered by time range extension:', timeRange);
         loadMoreZaps(true);
       }, ZAP_FETCH_CONFIG.AUTO_LOAD_DELAY_MS * 2);
-    } else if (withinBoundaryTolerance) {
-      console.log('Skipping extension auto-load - within boundary tolerance:', {
-        oldestCached: new Date(oldestCachedTimestamp * 1000).toISOString(),
-        timeRangeSince: new Date(since * 1000).toISOString(),
-        gapMinutes: Math.round((oldestCachedTimestamp - since) / 60)
-      });
-    } else if (currentState.consecutiveZeroResults >= maxConsecutiveZeroResults) {
-      console.log('Skipping extension auto-load - too many consecutive zero results:', {
-        consecutiveZeroResults: currentState.consecutiveZeroResults,
-        maxConsecutiveZeroResults
-      });
     }
 
     return () => {
@@ -717,14 +572,7 @@ export function useZappedContent(zapReceipts: ZapReceipt[]) {
         }
       });
 
-      console.log(`Content cache status: ${eventMap.size} cached, ${uncachedEventIds.length} need fetching out of ${eventIds.length} total`);
-
-      if (uncachedEventIds.length === 0) {
-        console.log('All content events found in cache, skipping network request');
-        return eventMap;
-      }
-
-      console.log(`Starting content fetch for ${uncachedEventIds.length} uncached events`);
+      if (uncachedEventIds.length === 0) return eventMap;
 
       const signal = AbortSignal.any([
         c.signal,
@@ -738,17 +586,11 @@ export function useZappedContent(zapReceipts: ZapReceipt[]) {
         chunks.push(uncachedEventIds.slice(i, i + chunkSize));
       }
 
-      console.log(`Fetching ${chunks.length} content chunks with max ${maxConcurrent} concurrent requests`);
-
-      // Helper function to process a single chunk
-      const processChunk = async (chunk: string[], chunkIndex: number): Promise<NostrEvent[]> => {
+      const processChunk = async (chunk: string[]): Promise<NostrEvent[]> => {
         try {
-          console.log(`Fetching content chunk ${chunkIndex + 1}/${chunks.length} (${chunk.length} events)`);
-          const events = await nostr.query([{ ids: chunk }], { signal });
-          console.log(`Content chunk ${chunkIndex + 1} complete: ${events.length} events fetched`);
-          return events;
+          return await nostr.query([{ ids: chunk }], { signal });
         } catch (error) {
-          console.warn(`Content chunk ${chunkIndex + 1} failed:`, error);
+          console.warn('Content chunk fetch failed:', error);
           return [];
         }
       };
@@ -758,9 +600,7 @@ export function useZappedContent(zapReceipts: ZapReceipt[]) {
       // Process chunks in batches with limited concurrency
       for (let i = 0; i < chunks.length; i += maxConcurrent) {
         const batch = chunks.slice(i, i + maxConcurrent);
-        const batchPromises = batch.map((chunk, batchIndex) =>
-          processChunk(chunk, i + batchIndex)
-        );
+        const batchPromises = batch.map((chunk) => processChunk(chunk));
 
         try {
           const batchResults = await Promise.all(batchPromises);
@@ -782,7 +622,6 @@ export function useZappedContent(zapReceipts: ZapReceipt[]) {
         contentEventCache.set(event.id, event);
       });
 
-      console.log(`Content fetch complete: ${allEvents.length} new events fetched, ${eventMap.size} total events available`);
       return eventMap;
     },
     enabled: eventIds.length > 0,
@@ -818,14 +657,7 @@ export function useZapperProfiles(pubkeys: string[]) {
         }
       });
 
-      console.log(`Profile cache status: ${profileMap.size} cached, ${uncachedPubkeys.length} need fetching out of ${uniquePubkeys.length} total`);
-
-      if (uncachedPubkeys.length === 0) {
-        console.log('All profiles found in cache, skipping network request');
-        return profileMap;
-      }
-
-      console.log(`Starting profile fetch for ${uncachedPubkeys.length} uncached pubkeys`);
+      if (uncachedPubkeys.length === 0) return profileMap;
 
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(15000)]); // Reduced timeout for faster failure detection
 
@@ -837,20 +669,13 @@ export function useZapperProfiles(pubkeys: string[]) {
         chunks.push(uncachedPubkeys.slice(i, i + chunkSize));
       }
 
-      console.log(`Fetching ${chunks.length} profile chunks with max ${maxConcurrent} concurrent requests`);
-
-      // Process chunks with limited concurrency
       const allProfiles: NostrEvent[] = [];
 
-      // Helper function to process a single chunk
-      const processChunk = async (chunk: string[], chunkIndex: number): Promise<NostrEvent[]> => {
+      const processChunk = async (chunk: string[]): Promise<NostrEvent[]> => {
         try {
-          console.log(`Fetching profile chunk ${chunkIndex + 1}/${chunks.length} (${chunk.length} pubkeys)`);
-          const profiles = await nostr.query([{ kinds: [0], authors: chunk }], { signal });
-          console.log(`Profile chunk ${chunkIndex + 1} complete: ${profiles.length} profiles fetched`);
-          return profiles;
+          return await nostr.query([{ kinds: [0], authors: chunk }], { signal });
         } catch (error) {
-          console.warn(`Failed to fetch profile chunk ${chunkIndex + 1}:`, error);
+          console.warn('Profile chunk fetch failed:', error);
           return [];
         }
       };
@@ -858,9 +683,7 @@ export function useZapperProfiles(pubkeys: string[]) {
       // Process chunks in batches with limited concurrency
       for (let i = 0; i < chunks.length; i += maxConcurrent) {
         const batch = chunks.slice(i, i + maxConcurrent);
-        const batchPromises = batch.map((chunk, batchIndex) =>
-          processChunk(chunk, i + batchIndex)
-        );
+        const batchPromises = batch.map((chunk) => processChunk(chunk));
 
         try {
           const batchResults = await Promise.all(batchPromises);
@@ -887,7 +710,6 @@ export function useZapperProfiles(pubkeys: string[]) {
         }
       });
 
-      console.log(`Profile fetch complete: ${allProfiles.length} new profiles fetched, ${profileMap.size} total profiles available`);
       return profileMap;
     },
     enabled: uniquePubkeys.length > 0,
