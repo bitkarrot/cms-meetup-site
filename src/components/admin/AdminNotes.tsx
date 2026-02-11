@@ -24,6 +24,7 @@ import { useInView } from 'react-intersection-observer';
 import { useNostr } from '@nostrify/react';
 import { BlossomUploader } from '@nostrify/nostrify/uploaders';
 import type { NostrEvent as NostrifyEvent } from '@nostrify/nostrify';
+import { queryWithNip65Fanout, getNip65ReadRelays } from '@/lib/queryRelays';
 import {
   Plus,
   Edit,
@@ -111,6 +112,8 @@ function AuthorInfo({ pubkey }: { pubkey: string }) {
 
 function useNoteStats(noteId: string, notePubkey: string): NoteStats & { isLoading: boolean } {
   const { nostr } = useNostr();
+  const { config } = useAppContext();
+  const nip65ReadRelays = getNip65ReadRelays(config.relayMetadata);
 
   const { data, isLoading } = useQuery({
     queryKey: ['note-stats', noteId],
@@ -118,10 +121,11 @@ function useNoteStats(noteId: string, notePubkey: string): NoteStats & { isLoadi
       const signal = AbortSignal.timeout(5000);
 
       // Fetch reactions (kind 7), zaps (kind 9735), and reposts (kind 6)
+      // Fan out to NIP-65 relays since social engagement data lives across many relays
       const [reactions, zaps, reposts] = await Promise.all([
-        nostr.query([{ kinds: [7], '#e': [noteId] }], { signal }),
-        nostr.query([{ kinds: [9735], '#e': [noteId] }], { signal }),
-        nostr.query([{ kinds: [6], '#e': [noteId] }], { signal }),
+        queryWithNip65Fanout(nostr, [{ kinds: [7], '#e': [noteId] }], nip65ReadRelays, signal),
+        queryWithNip65Fanout(nostr, [{ kinds: [9735], '#e': [noteId] }], nip65ReadRelays, signal),
+        queryWithNip65Fanout(nostr, [{ kinds: [6], '#e': [noteId] }], nip65ReadRelays, signal),
       ]);
 
       // Calculate zap amount
@@ -386,14 +390,16 @@ export default function AdminNotes() {
       const until = pageParam;
       if (!user?.pubkey) return [];
       const signal = AbortSignal.timeout(5000);
-      const events = await nostr!.query([
+      // Fan out to NIP-65 relays since user's notes may live on multiple relays
+      const nip65Relays = getNip65ReadRelays(config.relayMetadata);
+      const events = await queryWithNip65Fanout(nostr!, [
         {
           kinds: [1],
           authors: [user.pubkey],
           limit: 50,
           until
         }
-      ], { signal });
+      ], nip65Relays, signal);
 
       return events.map((event: NostrEvent) => ({
         id: event.id,

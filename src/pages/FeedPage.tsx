@@ -7,6 +7,7 @@ import { useSeoMeta } from '@unhead/react';
 import { LayoutGrid, Rss, AlertCircle, Loader2 } from 'lucide-react';
 
 import { useAppContext } from '@/hooks/useAppContext';
+import { queryWithNip65Fanout, getNip65ReadRelays } from '@/lib/queryRelays';
 import Navigation from '@/components/Navigation';
 import { FeedItem } from '@/components/FeedItem';
 import { Card, CardContent } from '@/components/ui/card';
@@ -19,6 +20,8 @@ export default function FeedPage() {
   const { nostr } = useNostr();
 
   const siteConfig = config.siteConfig;
+
+  const nip65ReadRelays = getNip65ReadRelays(config.relayMetadata);
 
   const { feedNpubs, readFromPublishRelays, publishRelays } = useMemo(() => ({
     feedNpubs: siteConfig?.feedNpubs || [],
@@ -61,35 +64,16 @@ export default function FeedPage() {
       let events: NostrEvent[] = [];
 
       try {
+        // Always fan out to NIP-65 relays (feed is social data that lives across relays)
+        // Combine NIP-65 relays with publish relays if the toggle is enabled
+        const additionalRelays = new Set<string>(nip65ReadRelays);
         if (readFromPublishRelays && publishRelays.length > 0) {
-          console.log('[FeedPage] Querying publish relays:', publishRelays);
-          // Query both default relay and publish relays
-          const results = await Promise.allSettled(
-            publishRelays.map(url => {
-              try {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const r = (nostr as any).relay(url);
-                return r.query([filter], { signal });
-              } catch (e) {
-                console.error(`[FeedPage] Error querying relay ${url}:`, e);
-                return Promise.resolve([]);
-              }
-            })
-          );
-
-          const allEvents = results
-            .filter((r): r is PromiseFulfilledResult<NostrEvent[]> => r.status === 'fulfilled')
-            .flatMap(r => r.value);
-
-          console.log(`[FeedPage] Total events found across all relays: ${allEvents.length}`);
-          // Deduplicate by ID
-          const uniqueEvents = Array.from(new Map(allEvents.map(e => [e.id, e])).values());
-          events = uniqueEvents;
-        } else {
-          console.log('[FeedPage] Querying default relay pool');
-          // Just query from the default relay (already in the pool)
-          events = await nostr.query([filter], { signal });
+          console.log('[FeedPage] Also querying publish relays:', publishRelays);
+          publishRelays.forEach((url: string) => additionalRelays.add(url));
         }
+
+        console.log('[FeedPage] Querying default relay + NIP-65 relays:', [...additionalRelays]);
+        events = await queryWithNip65Fanout(nostr, [filter], [...additionalRelays], signal);
         console.log(`[FeedPage] Final unique events count: ${events.length}`);
       } catch (err) {
         console.error('[FeedPage] Global query error:', err);

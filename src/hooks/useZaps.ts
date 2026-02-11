@@ -11,6 +11,7 @@ import type { WebLNProvider } from '@webbtc/webln-types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 import type { NostrEvent } from '@nostrify/nostrify';
+import { queryWithNip65Fanout, getNip65ReadRelays } from '@/lib/queryRelays';
 
 export function useZaps(
   target: Event | Event[],
@@ -23,6 +24,7 @@ export function useZaps(
   const { user } = useCurrentUser();
   const { config } = useAppContext();
   const queryClient = useQueryClient();
+  const nip65ReadRelays = getNip65ReadRelays(config.relayMetadata);
 
   // Handle the case where an empty array is passed (from ZapButton when external data is provided)
   const actualTarget = Array.isArray(target) ? (target.length > 0 ? target[0] : null) : target;
@@ -53,20 +55,21 @@ export function useZaps(
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
 
       // Query for zap receipts for this specific event
+      // Fan out to NIP-65 relays since zap receipts may live on multiple relays
       if (actualTarget.kind >= 30000 && actualTarget.kind < 40000) {
         // Addressable event
         const identifier = actualTarget.tags.find((t) => t[0] === 'd')?.[1] || '';
-        const events = await nostr.query([{
+        const events = await queryWithNip65Fanout(nostr, [{
           kinds: [9735],
           '#a': [`${actualTarget.kind}:${actualTarget.pubkey}:${identifier}`],
-        }], { signal });
+        }], nip65ReadRelays, signal);
         return events;
       } else {
         // Regular event
-        const events = await nostr.query([{
+        const events = await queryWithNip65Fanout(nostr, [{
           kinds: [9735],
           '#e': [actualTarget.id],
-        }], { signal });
+        }], nip65ReadRelays, signal);
         return events;
       }
     },

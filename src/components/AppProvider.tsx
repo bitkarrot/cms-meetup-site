@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { useHead, useSeoMeta } from '@unhead/react';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { AppContext, type AppConfig, type AppContextType, type Theme, type RelayMetadata } from '@/contexts/AppContext';
-import { getMasterPubkey } from '@/lib/relay';
+import { getMasterPubkey, getDefaultRelayUrl } from '@/lib/relay';
 
 interface AppProviderProps {
   children: ReactNode;
@@ -113,6 +113,13 @@ export function AppProvider(props: AppProviderProps) {
         ...(defaultConfig.siteConfig || {}),
         ...(rawConfig.siteConfig || {}),
       };
+
+      // Environment variable relay ALWAYS takes precedence over localStorage.
+      // This prevents stale relay URLs from persisting after switching VITE_DEFAULT_RELAY.
+      const envRelay = getDefaultRelayUrl();
+      if (envRelay && merged.siteConfig.defaultRelay !== envRelay) {
+        merged.siteConfig.defaultRelay = envRelay;
+      }
 
       // Ensure adminRoles exists
       if (!merged.siteConfig.adminRoles) {

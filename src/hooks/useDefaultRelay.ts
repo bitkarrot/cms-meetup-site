@@ -7,9 +7,10 @@ export function useDefaultRelay() {
   const { config } = useAppContext();
   const { nostr: poolNostr } = useNostr();
   
-  // Get the default relay from site config or fall back to auto-derived URL or first relay
-  const defaultRelayUrl = config.siteConfig?.defaultRelay ||
-    getDefaultRelayUrl() ||
+  // Environment variable relay ALWAYS has highest priority, then site config, then first relay
+  const envRelay = getDefaultRelayUrl();
+  const defaultRelayUrl = envRelay ||
+    config.siteConfig?.defaultRelay ||
     config.relayMetadata?.relays?.[0]?.url;
   
   // Create a dedicated connection to the default relay only

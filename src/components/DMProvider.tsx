@@ -12,6 +12,7 @@ import { generateSecretKey } from 'nostr-tools';
 import type { MessageProtocol } from '@/lib/dmConstants';
 import { MESSAGE_PROTOCOL } from '@/lib/dmConstants';
 import { DMContext, DMContextType, FileAttachment } from '@/contexts/DMContext';
+import { queryWithNip65Fanout, getNip65ReadRelays } from '@/lib/queryRelays';
 
 // ============================================================================
 // DM Types and Constants
@@ -437,7 +438,9 @@ export function DMProvider({ children, config }: DMProviderProps) {
       ];
 
       try {
-        const batchDMs = await nostr.query(filters, { signal: AbortSignal.timeout(DM_CONSTANTS.NIP4_QUERY_TIMEOUT) });
+        // Fan out to NIP-65 relays since DMs may be on multiple relays
+        const nip65Relays = getNip65ReadRelays(appConfig.relayMetadata);
+        const batchDMs = await queryWithNip65Fanout(nostr, filters, nip65Relays, AbortSignal.timeout(DM_CONSTANTS.NIP4_QUERY_TIMEOUT));
         const validBatchDMs = batchDMs.filter(validateDMEvent);
 
         if (validBatchDMs.length === 0) break;
@@ -474,7 +477,7 @@ export function DMProvider({ children, config }: DMProviderProps) {
 
     setScanProgress(prev => ({ ...prev, nip4: null }));
     return allMessages;
-  }, [user, nostr]);
+  }, [user, nostr, appConfig.relayMetadata]);
 
   // Load past NIP-17 messages
   const loadPastNIP17Messages = useCallback(async (sinceTimestamp?: number) => {
@@ -500,7 +503,9 @@ export function DMProvider({ children, config }: DMProviderProps) {
       ];
 
       try {
-        const batchEvents = await nostr.query(filters, { signal: AbortSignal.timeout(DM_CONSTANTS.NIP17_QUERY_TIMEOUT) });
+        // Fan out to NIP-65 relays since DMs may be on multiple relays
+        const nip65Relays17 = getNip65ReadRelays(appConfig.relayMetadata);
+        const batchEvents = await queryWithNip65Fanout(nostr, filters, nip65Relays17, AbortSignal.timeout(DM_CONSTANTS.NIP17_QUERY_TIMEOUT));
 
         if (batchEvents.length === 0) break;
 
@@ -529,7 +534,7 @@ export function DMProvider({ children, config }: DMProviderProps) {
 
     setScanProgress(prev => ({ ...prev, nip17: null }));
     return allNIP17Events;
-  }, [user, nostr]);
+  }, [user, nostr, appConfig.relayMetadata]);
 
   // Query relays for messages
   const queryRelaysForMessagesSince = useCallback(async (protocol: MessageProtocol, sinceTimestamp?: number): Promise<MessageProcessingResult> => {

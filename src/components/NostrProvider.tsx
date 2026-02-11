@@ -3,6 +3,7 @@ import { NostrEvent, NostrFilter, NPool, NRelay1 } from '@nostrify/nostrify';
 import { NostrContext } from '@nostrify/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAppContext } from '@/hooks/useAppContext';
+import { getDefaultRelayUrl } from '@/lib/relay';
 
 interface NostrProviderProps {
   children: React.ReactNode;
@@ -20,11 +21,11 @@ const NostrProvider: React.FC<NostrProviderProps> = (props) => {
   // Use refs so the pool always has the latest data
   const relayMetadata = useRef(config.relayMetadata);
 
-  // Invalidate Nostr queries when relay metadata changes
+  // Invalidate Nostr queries when relay metadata or default relay changes
   useEffect(() => {
     relayMetadata.current = config.relayMetadata;
     queryClient.invalidateQueries({ queryKey: ['nostr'] });
-  }, [config.relayMetadata, queryClient]);
+  }, [config.relayMetadata, config.siteConfig?.defaultRelay, queryClient]);
 
   // Initialize NPool only once
   if (!pool.current) {
@@ -35,24 +36,28 @@ const NostrProvider: React.FC<NostrProviderProps> = (props) => {
       reqRouter(filters: NostrFilter[]) {
         const routes = new Map<string, NostrFilter[]>();
 
-        // Route to all read relays
-        const readRelays = relayMetadata.current.relays
-          .filter(r => r.read)
-          .map(r => r.url);
-
-        for (const url of readRelays) {
-          routes.set(url, filters);
+        // Route reads to the DEFAULT RELAY ONLY.
+        // CMS content (events, blogs, forms, pages, site config) lives on the default relay.
+        // Social components (feed, notes, zaps, comments, DMs) use queryWithNip65Fanout()
+        // to additionally query NIP-65 relays on top of this pool.
+        const defaultRelay = getDefaultRelayUrl();
+        if (defaultRelay) {
+          routes.set(defaultRelay, filters);
         }
 
         return routes;
       },
       eventRouter(_event: NostrEvent) {
-        // Get write relays from metadata
+        const defaultRelay = getDefaultRelayUrl();
+
+        // Get write relays from NIP-65 metadata
         const writeRelays = relayMetadata.current.relays
           .filter(r => r.write)
           .map(r => r.url);
 
+        // Always include default relay for writes
         const allRelays = new Set<string>(writeRelays);
+        if (defaultRelay) allRelays.add(defaultRelay);
 
         return [...allRelays];
       },

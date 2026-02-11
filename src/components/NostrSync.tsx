@@ -146,7 +146,8 @@ export function NostrSync() {
           }
 
           // Only update if the event is newer than our current local site config
-          if (config.siteConfig?.updatedAt && eventUpdatedAt <= config.siteConfig.updatedAt) {
+          // BUT always apply when relay mismatch is detected (env var takes precedence)
+          if (!eventRelayDiffersFromEnv && config.siteConfig?.updatedAt && eventUpdatedAt <= config.siteConfig.updatedAt) {
             console.log('[NostrSync] Stored local config is newer or same as master event, skipping sync');
             hasSyncedConfig.current = true;
             return;

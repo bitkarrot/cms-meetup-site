@@ -1,9 +1,13 @@
 import { NKinds, NostrEvent, NostrFilter } from '@nostrify/nostrify';
 import { useNostr } from '@nostrify/react';
 import { useQuery } from '@tanstack/react-query';
+import { useAppContext } from '@/hooks/useAppContext';
+import { queryWithNip65Fanout, getNip65ReadRelays } from '@/lib/queryRelays';
 
 export function useComments(root: NostrEvent | URL, limit?: number) {
   const { nostr } = useNostr();
+  const { config } = useAppContext();
+  const nip65ReadRelays = getNip65ReadRelays(config.relayMetadata);
 
   return useQuery({
     queryKey: ['nostr', 'comments', root instanceof URL ? root.toString() : root.id, limit],
@@ -26,8 +30,9 @@ export function useComments(root: NostrEvent | URL, limit?: number) {
       }
 
       // Query for all kind 1111 comments that reference this addressable event regardless of depth
+      // Fan out to NIP-65 relays since comments are social data that may live on multiple relays
       const signal = AbortSignal.any([c.signal, AbortSignal.timeout(5000)]);
-      const events = await nostr.query([filter], { signal });
+      const events = await queryWithNip65Fanout(nostr, [filter], nip65ReadRelays, signal);
 
       // Helper function to get tag value
       const getTagValue = (event: NostrEvent, tagName: string): string | undefined => {

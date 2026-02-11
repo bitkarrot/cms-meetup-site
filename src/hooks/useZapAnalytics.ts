@@ -2,7 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNostr } from '@nostrify/react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useAppContext } from '@/hooks/useAppContext';
 import type { NostrEvent } from '@nostrify/nostrify';
+import { queryWithNip65Fanout, getNip65ReadRelays } from '@/lib/queryRelays';
 import type {
   ZapReceipt,
   ParsedZap,
@@ -51,6 +53,15 @@ const userZapCache = new Map<string, ZapReceipt[]>();
 const profileCache = new Map<string, Record<string, unknown>>();
 
 /**
+ * Clear all module-level zap caches. Call this when the relay changes
+ * to prevent stale data from persisting across relay switches.
+ */
+export function clearZapCaches(): void {
+  userZapCache.clear();
+  profileCache.clear();
+}
+
+/**
  * Progressive zap loading state
  */
 interface ZapLoadingState {
@@ -73,6 +84,8 @@ interface ZapLoadingState {
 function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: CustomDateRange, targetPubkey?: string) {
   const { nostr } = useNostr();
   const { user: currentUser } = useCurrentUser();
+  const { config } = useAppContext();
+  const nip65ReadRelays = getNip65ReadRelays(config.relayMetadata);
   const pubkey = targetPubkey || currentUser?.pubkey;
 
   const [state, setState] = useState<ZapLoadingState>({
@@ -288,7 +301,8 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
         AbortSignal.timeout(ZAP_FETCH_CONFIG.TIMEOUT_MS)
       ]);
 
-      const events = await nostr.query([filter], { signal: batchSignal });
+      // Fan out to NIP-65 relays since zap receipts may live on multiple relays
+      const events = await queryWithNip65Fanout(nostr, [filter], nip65ReadRelays, batchSignal);
 
       // Filter and validate zap receipts
       const validReceipts = events.filter((event): event is ZapReceipt =>
@@ -434,7 +448,7 @@ function useProgressiveZapReceipts(timeRange: TimeRange = '7d', customRange?: Cu
       // Always ensure loading state is cleared
       isLoadingRef.current = false;
     }
-  }, [nostr, pubkey, timeRange, customRange]);
+  }, [nostr, pubkey, timeRange, customRange, nip65ReadRelays]);
 
   // Auto-start loading when switching to a time range that needs more data
   useEffect(() => {

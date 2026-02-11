@@ -1,9 +1,13 @@
 import { type NostrEvent, type NostrMetadata, NSchema as n } from '@nostrify/nostrify';
 import { useNostr } from '@nostrify/react';
 import { useQuery } from '@tanstack/react-query';
+import { useAppContext } from '@/hooks/useAppContext';
+import { queryWithNip65Fanout, getNip65ReadRelays } from '@/lib/queryRelays';
 
 export function useAuthor(pubkey: string | undefined) {
   const { nostr } = useNostr();
+  const { config } = useAppContext();
+  const nip65ReadRelays = getNip65ReadRelays(config.relayMetadata);
 
   return useQuery<{ event?: NostrEvent; metadata?: NostrMetadata }>({
     queryKey: ['author', pubkey ?? ''],
@@ -12,10 +16,12 @@ export function useAuthor(pubkey: string | undefined) {
         return {};
       }
 
-      // Try primary relays first
-      let [event] = await nostr.query(
+      // Try primary relays + NIP-65 relays (profiles are social data across many relays)
+      let [event] = await queryWithNip65Fanout(
+        nostr,
         [{ kinds: [0], authors: [pubkey!], limit: 1 }],
-        { signal: AbortSignal.any([signal, AbortSignal.timeout(1500)]) },
+        nip65ReadRelays,
+        AbortSignal.any([signal, AbortSignal.timeout(1500)]),
       );
 
       // If no event found, try purplepag.es

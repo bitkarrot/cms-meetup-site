@@ -2,6 +2,8 @@ import { useNostr } from '@nostrify/react';
 import { useNostrLogin } from '@nostrify/react/login';
 import { useQuery } from '@tanstack/react-query';
 import { NSchema as n, NostrEvent, NostrMetadata } from '@nostrify/nostrify';
+import { useAppContext } from '@/hooks/useAppContext';
+import { queryWithNip65Fanout, getNip65ReadRelays } from '@/lib/queryRelays';
 
 export interface Account {
   id: string;
@@ -13,13 +15,17 @@ export interface Account {
 export function useLoggedInAccounts() {
   const { nostr } = useNostr();
   const { logins, setLogin, removeLogin } = useNostrLogin();
+  const { config } = useAppContext();
+  const nip65ReadRelays = getNip65ReadRelays(config.relayMetadata);
 
   const { data: authors = [] } = useQuery({
     queryKey: ['nostr', 'logins', logins.map((l) => l.id).join(';')],
     queryFn: async ({ signal }) => {
-      const events = await nostr.query(
+      const events = await queryWithNip65Fanout(
+        nostr,
         [{ kinds: [0], authors: logins.map((l) => l.pubkey) }],
-        { signal: AbortSignal.any([signal, AbortSignal.timeout(1500)]) },
+        nip65ReadRelays,
+        AbortSignal.any([signal, AbortSignal.timeout(1500)]),
       );
 
       return logins.map(({ id, pubkey }): Account => {

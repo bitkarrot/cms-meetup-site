@@ -67,8 +67,40 @@ A comprehensive meetup or small organization and event management system built w
 
 ## Configuration
 
-### Relays
-- **Primary Relay**: Configured via `VITE_DEFAULT_RELAY`. This is the main source for reading and the first destination for publishing.
+### Relay Architecture (Two-Tier Strategy)
+
+The application uses a two-tier relay strategy to separate CMS content from social data:
+
+#### Tier 1: Default Relay Only (CMS Content)
+Configured via `VITE_DEFAULT_RELAY`. This is the **single source of truth** for all CMS content — both reading and writing. The environment variable always takes precedence over any locally cached or Nostr-stored relay URL.
+
+CMS content that reads/writes exclusively from the default relay:
+- Site configuration (Kind 30078)
+- Blog posts (Kind 30023)
+- Calendar events (Kind 31922, 31923)
+- Forms (Kind 30168) and form responses (Kind 30169)
+- Static pages (Kind 34128)
+- Event RSVPs (Kind 31925)
+- Admin dashboard, settings, and system settings
+- NIP-65 relay list sync and site config sync
+
+#### Tier 2: Default Relay + NIP-65 Relays (Social Data)
+Social and aggregated content fans out to both the default relay and the user's NIP-65 relay list, since this data may not exist on the default relay alone:
+- **Feed** (Kind 1 notes) — also includes publish relays if `feedReadFromPublishRelays` is enabled
+- **Notes & Note Stats** (Kind 1, reactions, zaps, reposts)
+- **Zap Receipts & Analytics** (Kind 9735)
+- **Comments** (Kind 1111)
+- **User Profiles** (Kind 0) — with `wss://purplepag.es` fallback
+- **Direct Messages** (NIP-04 Kind 4, NIP-17 Kind 1059)
+
+The fan-out logic is implemented via `queryWithNip65Fanout()` in `src/lib/queryRelays.ts`, which queries the pool (default relay) and all NIP-65 read relays in parallel, then deduplicates results by event ID.
+
+#### Publishing
+All writes always include the default relay. NIP-65 write relays are also included for redundancy. Additional publishing relays can be configured in admin settings for blast publishing.
+
+#### Relay Priority
+The `VITE_DEFAULT_RELAY` environment variable **always** overrides any relay URL stored in localStorage or fetched from Nostr events. This prevents stale relay URLs from persisting after switching the default relay.
+
 - **Additional Publishing Relays**: 
   - `wss://relay.damus.io`
   - `wss://relay.primal.net` 
