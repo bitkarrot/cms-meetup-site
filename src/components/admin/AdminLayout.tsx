@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,9 @@ import { useAppContext } from '@/hooks/useAppContext';
 import { useAdminAuth } from '@/hooks/useRemoteNostrJson';
 import { getMasterPubkey } from '@/lib/relay';
 import { useSchedulerHealth } from '@/hooks/useSchedulerHealth';
+import { useDefaultRelay } from '@/hooks/useDefaultRelay';
+import { useQueryClient } from '@tanstack/react-query';
+import type { NostrFilter } from '@nostrify/nostrify';
 import {
   LayoutDashboard,
   FileText,
@@ -45,6 +48,37 @@ export default function AdminLayout() {
   const { config } = useAppContext();
   const { isAdmin } = useAdminAuth(user?.pubkey);
   const { data: isSchedulerHealthy } = useSchedulerHealth();
+  const { nostr } = useDefaultRelay();
+  const queryClient = useQueryClient();
+
+  // Prefetch shared queries so Dashboard/Blog/Events load instantly
+  useEffect(() => {
+    if (!nostr) return;
+
+    const signal = AbortSignal.timeout(5000);
+
+    queryClient.prefetchQuery({
+      queryKey: ['admin-blog-posts', user?.pubkey],
+      queryFn: async () => {
+        const filters: NostrFilter[] = [{ kinds: [30023], limit: 50 }];
+        if (user?.pubkey) {
+          filters.push({ kinds: [31234], authors: [user.pubkey], '#k': ['30023'], limit: 20 });
+        }
+        const events = await nostr.query(filters, { signal });
+        return events.filter(event =>
+          event.kind === 30023 ||
+          (event.kind === 31234 && event.tags.some(([name, value]) => name === 'k' && value === '30023'))
+        );
+      },
+    });
+
+    queryClient.prefetchQuery({
+      queryKey: ['admin-events'],
+      queryFn: async () => {
+        return nostr.query([{ kinds: [31922, 31923], limit: 100 }], { signal });
+      },
+    });
+  }, [nostr, user?.pubkey, queryClient]);
 
   const toggleSidebar = () => {
     const newState = !isCollapsed;
