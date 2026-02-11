@@ -3,7 +3,7 @@ import { useNostr } from '@nostrify/react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAppContext } from '@/hooks/useAppContext';
 import { type AppConfig } from '@/contexts/AppContext';
-import { getDefaultRelayUrl, getMasterPubkey } from '@/lib/relay';
+import { getDefaultRelayUrl, getMasterPubkey, getSiteConfigDTag, LEGACY_SITE_CONFIG_DTAG } from '@/lib/relay';
 
 /**
  * NostrSync - Syncs user's Nostr data
@@ -97,15 +97,42 @@ export function NostrSync() {
           return;
         }
 
-        const events = await nostr.query(
+        // Query with relay-scoped d-tag first (prevents cross-site config bleed)
+        const scopedDTag = getSiteConfigDTag();
+        let events = await nostr.query(
           [{
             kinds: [30078],
             authors: [masterPubkey],
-            '#d': ['nostr-meetup-site-config'],
+            '#d': [scopedDTag],
             limit: 1
           }],
           { signal: AbortSignal.timeout(5000) }
         );
+
+        // Migration fallback: try legacy unscoped d-tag if no scoped config found
+        if (events.length === 0) {
+          console.log('[NostrSync] No scoped config found, trying legacy d-tag');
+          events = await nostr.query(
+            [{
+              kinds: [30078],
+              authors: [masterPubkey],
+              '#d': [LEGACY_SITE_CONFIG_DTAG],
+              limit: 1
+            }],
+            { signal: AbortSignal.timeout(5000) }
+          );
+
+          // Only accept legacy event if its default_relay matches our env var
+          if (events.length > 0) {
+            const legacyRelay = events[0].tags.find(([name]) => name === 'default_relay')?.[1];
+            if (legacyRelay && envDefaultRelay && legacyRelay !== envDefaultRelay) {
+              console.log('[NostrSync] Legacy config belongs to different site (relay:', legacyRelay, '), ignoring');
+              events = [];
+            } else {
+              console.log('[NostrSync] Using legacy config (relay matches)');
+            }
+          }
+        }
 
         if (events.length > 0) {
           const event = events[0];

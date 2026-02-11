@@ -13,7 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/useToast';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useRemoteNostrJson } from '@/hooks/useRemoteNostrJson';
-import { getMasterPubkey } from '@/lib/relay';
+import { getMasterPubkey, getSiteConfigDTag } from '@/lib/relay';
 import { formatPubkey } from '@/lib/utils';
 import { useAuthor } from '@/hooks/useAuthor';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -116,8 +116,9 @@ export default function AdminFeed() {
       };
 
       // We need to publish the entire site config because it's a replaceable event
+      const scopedDTag = getSiteConfigDTag();
       const configTags = [
-        ['d', 'nostr-meetup-site-config'],
+        ['d', scopedDTag],
         ['title', updatedConfig.title || ''],
         ['logo', updatedConfig.logo || ''],
         ['favicon', updatedConfig.favicon || ''],

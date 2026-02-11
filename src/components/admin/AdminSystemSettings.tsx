@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { useAuthor } from '@/hooks/useAuthor';
 import { useAdminAuth } from '@/hooks/useRemoteNostrJson';
-import { getDefaultRelayUrl, getMasterPubkey } from '@/lib/relay';
+import { getDefaultRelayUrl, getMasterPubkey, getSiteConfigDTag } from '@/lib/relay';
 
 interface SiteConfig {
   title: string;
@@ -192,11 +192,12 @@ export default function AdminSystemSettings() {
 
     try {
       const signal = AbortSignal.timeout(5000);
+      const scopedDTag = getSiteConfigDTag();
       const events = await nostr.query([
         {
           kinds: [30078],
           authors: [masterPubkey],
-          '#d': ['nostr-meetup-site-config'],
+          '#d': [scopedDTag],
           limit: 1
         }
       ], { signal });
@@ -329,8 +330,9 @@ export default function AdminSystemSettings() {
     const filteredRelays = siteConfig.publishRelays.filter(r => r.trim() !== '');
 
     try {
+      const scopedDTag = getSiteConfigDTag();
       const configTags = [
-        ['d', 'nostr-meetup-site-config'],
+        ['d', scopedDTag],
         ['title', siteConfig.title],
         ['logo', siteConfig.logo],
         ['favicon', siteConfig.favicon],
@@ -406,8 +408,9 @@ export default function AdminSystemSettings() {
         }
 
         // 2. Publish Kind 30078 with default values (blanked out except for default relay)
+        const scopedDTag = getSiteConfigDTag();
         const defaultConfigTags = [
-          ['d', 'nostr-meetup-site-config'],
+          ['d', scopedDTag],
           ['title', 'My Meetup Site'],
           ['logo', ''],
           ['favicon', ''],

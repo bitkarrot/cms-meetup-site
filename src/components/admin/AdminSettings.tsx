@@ -17,7 +17,7 @@ import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNostr } from '@nostrify/react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
-import { getDefaultRelayUrl, getMasterPubkey } from '@/lib/relay';
+import { getDefaultRelayUrl, getMasterPubkey, getSiteConfigDTag } from '@/lib/relay';
 import { Save, Plus, Trash2, GripVertical, RefreshCw, ShieldAlert, Eye, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/useToast';
@@ -498,11 +498,12 @@ export default function AdminSettings() {
     try {
       const masterPubkey = getMasterPubkey();
       const signal = AbortSignal.timeout(5000);
+      const scopedDTag = getSiteConfigDTag();
       const events = await nostr.query([
         {
           kinds: [30078],
           authors: [masterPubkey],
-          '#d': ['nostr-meetup-site-config'],
+          '#d': [scopedDTag],
           limit: 1
         }
       ], { signal });
@@ -666,8 +667,9 @@ export default function AdminSettings() {
     try {
       // Save site configuration as a replaceable event (kind 30078) following NIP-78
       console.log('Saving config to Nostr and local context...', siteConfig);
+      const scopedDTag = getSiteConfigDTag();
       const configTags = [
-        ['d', 'nostr-meetup-site-config'],
+        ['d', scopedDTag],
         ['title', siteConfig.title],
         ['logo', siteConfig.logo],
         ['favicon', siteConfig.favicon],

@@ -66,6 +66,19 @@ export function getDefaultRelayUrl(): string {
  * Converts wss:// → https:// and ws:// → http://, then appends /api.
  * Falls back to /api for same-domain deployments when no relay env var is set.
  */
+/**
+ * Get the relay-scoped d-tag for site config (Kind 30078).
+ * Each site deployment gets its own config event by including the relay URL in the d-tag.
+ * This prevents cross-site config bleed when the same master pubkey manages multiple sites.
+ */
+export function getSiteConfigDTag(): string {
+  const relay = getDefaultRelayUrl();
+  return `nostr-meetup-site-config:${relay}`;
+}
+
+/** The legacy unscoped d-tag, used as migration fallback. */
+export const LEGACY_SITE_CONFIG_DTAG = 'nostr-meetup-site-config';
+
 export function getApiBaseUrl(): string {
   const envSwarmApi = import.meta.env.VITE_SWARM_API_URL;
   if (envSwarmApi) return envSwarmApi;
