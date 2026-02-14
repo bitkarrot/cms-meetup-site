@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NUser } from '@nostrify/react/login';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,8 +10,9 @@ import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useDefaultRelay } from '@/hooks/useDefaultRelay';
 import { useAuthor } from '@/hooks/useAuthor';
+import { parseCalendarEventStartEnd } from '@/lib/eventTime';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Edit, Trash2, Calendar, MapPin, Share2, Eye, Layout, Search, ExternalLink, Library, Filter } from 'lucide-react';
+import { Plus, Edit, Trash2, Calendar, MapPin, Share2, Eye, Layout, Search, ExternalLink, Library, Filter, RefreshCw } from 'lucide-react';
 import { MediaSelectorDialog } from './MediaSelectorDialog';
 import { AuthorInfo } from '@/components/AuthorInfo';
 import { useQuery } from '@tanstack/react-query';
@@ -127,6 +128,7 @@ export default function AdminEvents() {
   const { nostr, publishRelays: initialPublishRelays } = useDefaultRelay();
   const { user } = useCurrentUser();
   const { mutate: publishEvent } = useNostrPublish();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [editingEvent, setEditingEvent] = useState<MeetupEvent | null>(null);
   const [eventType, setEventType] = useState<'date' | 'time'>('time');
@@ -168,19 +170,12 @@ export default function AdminEvents() {
         const tags = event.tags || [];
         const startTag = tags.find(([name]) => name === 'start')?.[1] || '0';
         const endTag = tags.find(([name]) => name === 'end')?.[1];
-
-        let start: number;
-        let end: number | undefined;
-
-        if (event.kind === 31922) {
-          // Date-based: YYYY-MM-DD
-          start = Math.floor(new Date(startTag).getTime() / 1000);
-          end = endTag ? Math.floor(new Date(endTag).getTime() / 1000) : undefined;
-        } else {
-          // Time-based: unix timestamp
-          start = parseInt(startTag);
-          end = endTag ? parseInt(endTag) : undefined;
-        }
+        const { start, end } = parseCalendarEventStartEnd(
+          event.kind,
+          startTag,
+          endTag,
+          event.created_at,
+        );
 
         return {
           id: event.id,
@@ -200,6 +195,15 @@ export default function AdminEvents() {
     },
     enabled: !!nostr,
   });
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Filter events based on nostr.json users
   const events = filterByNostrJson && remoteNostrJson?.names
@@ -691,10 +695,16 @@ export default function AdminEvents() {
                 </Label>
               </div>
             </div>
-            <Button onClick={() => setIsCreating(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Event
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button onClick={() => setIsCreating(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Event
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-4">

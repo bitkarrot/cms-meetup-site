@@ -10,12 +10,14 @@ import Navigation from '@/components/Navigation';
 import { useAppContext } from '@/hooks/useAppContext';
 import { useEffect, useState } from 'react';
 import { nip19 } from 'nostr-tools';
+import { RefreshCw } from 'lucide-react';
 
 export default function StaticPage({ pathOverride }: { pathOverride?: string }) {
   const { config: appContext } = useAppContext();
   const { path } = useParams<{ path: string }>();
   const { nostr: defaultRelay } = useDefaultRelay();
   const [content, setContent] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const fullPath = pathOverride || `/${path}`;
 
   useEffect(() => {
@@ -136,10 +138,25 @@ export default function StaticPage({ pathOverride }: { pathOverride?: string }) 
 
   const isHtml = content?.trim().startsWith('<');
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
       <main className="max-w-4xl mx-auto px-4 py-12">
+        <div className="mb-6">
+          <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh Page
+          </Button>
+        </div>
         <article className="prose prose-slate dark:prose-invert max-w-none">
           {isHtml ? (
             <div dangerouslySetInnerHTML={{ __html: content || '' }} />

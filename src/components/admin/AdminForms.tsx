@@ -89,6 +89,7 @@ import {
   Tag,
   Download,
   AlertCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { nip19 } from 'nostr-tools';
 import {
@@ -864,6 +865,7 @@ export default function AdminForms() {
   const [selectedForm, setSelectedForm] = useState<NostrForm | null>(null);
   const [linkedPath, setLinkedPath] = useState('');
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingFormResponseCount, setEditingFormResponseCount] = useState<number>(0);
 
   // Form builder state
@@ -995,6 +997,18 @@ export default function AdminForms() {
       );
     })
     : allForms;
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        refetch(),
+        queryClient.invalidateQueries({ queryKey: ['form-response-counts'] }),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Check if form is dirty
   const isDirty = editingForm
@@ -1652,10 +1666,16 @@ export default function AdminForms() {
                 </Label>
               </div>
             </div>
-            <Button onClick={() => setIsCreating(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Form
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button onClick={() => setIsCreating(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Form
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-4">

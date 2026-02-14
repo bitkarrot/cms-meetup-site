@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,7 +18,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card';
-import { Plus, Edit, Trash2, Eye, Layout, Share2, Globe, User, Filter } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, Layout, Share2, Globe, User, Filter, RefreshCw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
@@ -148,6 +148,7 @@ export default function AdminPages() {
   const { data: remoteNostrJson } = useRemoteNostrJson();
 
   const [isCreating, setIsCreating] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingPage, setEditingPage] = useState<StaticPage | null>(null);
   const [selectedRelays, setSelectedRelays] = useState<string[]>([]);
   const [filterByNostrJson, setFilterByNostrJson] = useState(false);
@@ -188,6 +189,15 @@ export default function AdminPages() {
     },
     enabled: !!nostr,
   });
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Filter pages based on nostr.json users
   const pages = filterByNostrJson && remoteNostrJson?.names
@@ -465,10 +475,16 @@ export default function AdminPages() {
                 </Label>
               </div>
             </div>
-            <Button onClick={() => setIsCreating(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Page
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button onClick={() => setIsCreating(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Page
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-4">

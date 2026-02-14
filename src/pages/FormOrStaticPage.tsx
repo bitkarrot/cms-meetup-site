@@ -2,7 +2,6 @@ import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useDefaultRelay } from '@/hooks/useDefaultRelay';
 import StaticPage from './StaticPage';
-import FormPage from './FormPage';
 import { PageLoadingIndicator } from '@/components/PageLoadingIndicator';
 
 /**
@@ -19,7 +18,7 @@ export default function FormOrStaticPage({ pathOverride }: { pathOverride?: stri
   const { data: linkedForm, isLoading } = useQuery({
     queryKey: ['linked-form-check', fullPath],
     queryFn: async () => {
-      const signal = AbortSignal.timeout(3000);
+      const signal = AbortSignal.timeout(5000);
 
       // Query for forms with this linked-path
       const unslashedPath = fullPath.startsWith('/') ? fullPath.slice(1) : fullPath;
@@ -45,7 +44,8 @@ export default function FormOrStaticPage({ pathOverride }: { pathOverride?: stri
       return { found: false };
     },
     enabled: !!defaultRelay,
-    staleTime: 60000, // Cache for 1 minute
+    staleTime: 0,
+    retry: 2,
   });
 
   if (isLoading) {
@@ -63,8 +63,7 @@ export default function FormOrStaticPage({ pathOverride }: { pathOverride?: stri
 }
 
 // Embedded form component for linked forms
-import { useState, useEffect, useMemo } from 'react';
-import { nip19 } from 'nostr-tools';
+import { useState, useEffect } from 'react';
 import { useNostr } from '@nostrify/react';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useCurrentUser } from '@/hooks/useCurrentUser';

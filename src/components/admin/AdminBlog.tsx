@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { nip19 } from 'nostr-tools';
 import { useLocation } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +12,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useDefaultRelay } from '@/hooks/useDefaultRelay';
 import { useToast } from '@/hooks/useToast';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Edit, Trash2, Eye, Layout, Share2, Search, Image as ImageIcon, Library, Loader2, Clock, Filter } from 'lucide-react';
+import { Plus, Edit, Trash2, Eye, Layout, Share2, Search, Image as ImageIcon, Library, Loader2, Clock, Filter, RefreshCw } from 'lucide-react';
 import { MediaSelectorDialog } from './MediaSelectorDialog';
 import { SchedulePicker } from './SchedulePicker';
 import { useCreateScheduledPost, useUpdateScheduledPost } from '@/hooks/useScheduledPosts';
@@ -150,6 +150,7 @@ export default function AdminBlog() {
   const { toast } = useToast();
   const { data: remoteNostrJson } = useRemoteNostrJson();
   const [isCreating, setIsCreating] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null);
   const [editingScheduledPostId, setEditingScheduledPostId] = useState<string | null>(null);
   const [selectedRelays, setSelectedRelays] = useState<string[]>([]);
@@ -422,6 +423,15 @@ export default function AdminBlog() {
       );
     })
     : allPosts;
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Check if form is dirty
   const isDirty = editingPost
@@ -961,10 +971,16 @@ export default function AdminBlog() {
                 </Label>
               </div>
             </div>
-            <Button onClick={() => setIsCreating(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Post
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button onClick={() => setIsCreating(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Post
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-4">

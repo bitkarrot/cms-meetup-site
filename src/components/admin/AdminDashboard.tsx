@@ -5,6 +5,7 @@ import { FileText, Calendar, RefreshCw, AlertTriangle, ChevronDown, ChevronUp, X
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDefaultRelay } from '@/hooks/useDefaultRelay';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { parseNostrEventTime } from '@/lib/eventTime';
 import type { NostrFilter } from '@nostrify/nostrify';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
@@ -295,12 +296,9 @@ export default function AdminDashboard() {
 
                 let dateDisplay = 'No date';
                 if (startTag) {
-                  if (event.kind === 31922) {
-                    // Date-based: YYYY-MM-DD
-                    dateDisplay = new Date(startTag).toLocaleDateString();
-                  } else {
-                    // Time-based: unix timestamp
-                    dateDisplay = new Date(parseInt(startTag) * 1000).toLocaleDateString();
+                  const parsedStart = parseNostrEventTime(startTag);
+                  if (parsedStart) {
+                    dateDisplay = new Date(parsedStart * 1000).toLocaleDateString();
                   }
                 }
 

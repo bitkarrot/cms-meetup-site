@@ -10,9 +10,10 @@ import { PageLoadingIndicator } from '@/components/PageLoadingIndicator';
 import { useQuery } from '@tanstack/react-query';
 import { useDefaultRelay } from '@/hooks/useDefaultRelay';
 import { getMasterPubkey } from '@/lib/relay';
+import { parseCalendarEventStartEnd } from '@/lib/eventTime';
 import { useAppContext } from '@/hooks/useAppContext';
 import Navigation from '@/components/Navigation';
-import { Calendar, MapPin, Clock, Search, Filter } from 'lucide-react';
+import { Calendar, MapPin, Clock, Search, Filter, RefreshCw } from 'lucide-react';
 import { AuthorInfo } from '@/components/AuthorInfo';
 
 interface Event {
@@ -46,11 +47,12 @@ export default function EventsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('upcoming');
   const [sort, setSort] = useState('date-asc');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const { data: events = [], isLoading } = useQuery({
+  const { data: events = [], isLoading, refetch } = useQuery({
     queryKey: ['events', appContext.siteConfig?.adminRoles],
     queryFn: async () => {
-      const signal = AbortSignal.timeout(2000);
+      const signal = AbortSignal.timeout(5000);
       const eventList = await nostr!.query([
         { kinds: [31922, 31923], limit: 100 }
       ], { signal });
@@ -68,19 +70,12 @@ export default function EventsPage() {
         const tags = event.tags || [];
         const startTag = tags.find(([name]) => name === 'start')?.[1] || '0';
         const endTag = tags.find(([name]) => name === 'end')?.[1];
-        
-        let start: number;
-        let end: number | undefined;
-
-        if (event.kind === 31922) {
-          // Date-based: YYYY-MM-DD
-          start = Math.floor(new Date(startTag).getTime() / 1000);
-          end = endTag ? Math.floor(new Date(endTag).getTime() / 1000) : undefined;
-        } else {
-          // Time-based: unix timestamp
-          start = parseInt(startTag);
-          end = endTag ? parseInt(endTag) : undefined;
-        }
+        const { start, end } = parseCalendarEventStartEnd(
+          event.kind,
+          startTag,
+          endTag,
+          event.created_at,
+        );
 
         return {
           id: event.id,
@@ -99,6 +94,15 @@ export default function EventsPage() {
     },
     enabled: !!nostr,
   });
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Filter and sort events
   const filteredEvents = events
@@ -160,6 +164,12 @@ export default function EventsPage() {
             <p className="text-lg text-muted-foreground">
               Discover and join community meetups and events
             </p>
+            <div className="mt-4">
+              <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh Events
+              </Button>
+            </div>
           </div>
 
           {/* Filters */}

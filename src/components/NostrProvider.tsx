@@ -29,7 +29,7 @@ const NostrProvider: React.FC<NostrProviderProps> = (props) => {
 
   // Initialize NPool only once
   if (!pool.current) {
-    pool.current = new NPool({
+    const poolOptions = {
       open(url: string) {
         return new NRelay1(url);
       },
@@ -61,11 +61,14 @@ const NostrProvider: React.FC<NostrProviderProps> = (props) => {
 
         return [...allRelays];
       },
-    });
+      eoseTimeout: 1200,
+    } as unknown as ConstructorParameters<typeof NPool>[0];
+
+    pool.current = new NPool(poolOptions);
   }
 
   return (
-    <NostrContext.Provider value={{ nostr: pool.current }}>
+    <NostrContext.Provider value={{ nostr: pool.current as unknown as never }}>
       {children}
     </NostrContext.Provider>
   );

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useSeoMeta } from '@unhead/react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -11,21 +12,23 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useDefaultRelay } from '@/hooks/useDefaultRelay';
 import { getMasterPubkey } from '@/lib/relay';
+import { parseCalendarEventStartEnd } from '@/lib/eventTime';
 import { useAppContext } from '@/hooks/useAppContext';
-import { ArrowLeft, Calendar, MapPin, Clock } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Clock, RefreshCw } from 'lucide-react';
 import { AuthorInfo } from '@/components/AuthorInfo';
 
 export default function EventPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const { nostr } = useDefaultRelay();
   const { config } = useAppContext();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const { data: event, isLoading } = useQuery({
+  const { data: event, isLoading, refetch } = useQuery({
     queryKey: ['event', eventId, config.siteConfig?.adminRoles],
     queryFn: async () => {
       if (!eventId) return null;
       
-      const signal = AbortSignal.timeout(2000);
+      const signal = AbortSignal.timeout(5000);
       const events = await nostr!.query([
         { ids: [eventId], limit: 1 }
       ], { signal });
@@ -43,19 +46,12 @@ export default function EventPage() {
       const tags = e.tags || [];
       const startTag = tags.find(([name]) => name === 'start')?.[1] || '0';
       const endTag = tags.find(([name]) => name === 'end')?.[1];
-      
-      let start: number;
-      let end: number | undefined;
-
-      if (e.kind === 31922) {
-        // Date-based: YYYY-MM-DD
-        start = Math.floor(new Date(startTag).getTime() / 1000);
-        end = endTag ? Math.floor(new Date(endTag).getTime() / 1000) : undefined;
-      } else {
-        // Time-based: unix timestamp
-        start = parseInt(startTag);
-        end = endTag ? parseInt(endTag) : undefined;
-      }
+      const { start, end } = parseCalendarEventStartEnd(
+        e.kind,
+        startTag,
+        endTag,
+        e.created_at,
+      );
 
       return {
         id: e.id,
@@ -74,6 +70,15 @@ export default function EventPage() {
     },
     enabled: !!nostr && !!eventId,
   });
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Update SEO meta tags when event is loaded
   useSeoMeta({
@@ -100,9 +105,15 @@ export default function EventPage() {
             <p className="text-muted-foreground mb-4">
               The event you're looking for doesn't exist or has been deleted.
             </p>
-            <Button asChild>
-              <Link to="/events">Back to Events</Link>
-            </Button>
+            <div className="flex items-center justify-center gap-2">
+              <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button asChild>
+                <Link to="/events">Back to Events</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

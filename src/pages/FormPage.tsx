@@ -16,7 +16,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LoginArea } from '@/components/auth/LoginArea';
-import { ClipboardList, Send, Check, AlertCircle, User } from 'lucide-react';
+import { ClipboardList, Send, Check, AlertCircle, User, RefreshCw } from 'lucide-react';
 import { useAuthor } from '@/hooks/useAuthor';
 
 // Form field types
@@ -231,6 +231,7 @@ export default function FormPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Decode the naddr or form ID
   const formInfo = useMemo(() => {
@@ -263,7 +264,7 @@ export default function FormPage() {
   }, [formId]);
 
   // Fetch form from Nostr
-  const { data: formEvent, isLoading, error } = useQuery({
+  const { data: formEvent, isLoading, error, refetch } = useQuery({
     queryKey: ['form', formId],
     enabled: !!formInfo,
     queryFn: async () => {
@@ -492,6 +493,15 @@ export default function FormPage() {
 
   // Error state
   if (error || !formEvent) {
+    const handleRefresh = async () => {
+      setIsRefreshing(true);
+      try {
+        await refetch();
+      } finally {
+        setIsRefreshing(false);
+      }
+    };
+
     return (
       <div className="min-h-screen bg-background py-12 px-4">
         <div className="max-w-2xl mx-auto">
@@ -502,9 +512,15 @@ export default function FormPage() {
               <p className="text-muted-foreground mb-6">
                 The form you're looking for doesn't exist or has been deleted.
               </p>
-              <Button variant="outline" onClick={() => window.history.back()}>
-                Go Back
-              </Button>
+              <div className="flex items-center justify-center gap-2">
+                <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                <Button variant="outline" onClick={() => window.history.back()}>
+                  Go Back
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

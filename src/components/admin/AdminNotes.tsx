@@ -9,18 +9,15 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useDefaultRelay } from '@/hooks/useDefaultRelay';
 import { useAppContext } from '@/hooks/useAppContext';
 import { useToast } from '@/hooks/useToast';
-import { useAuthor } from '@/hooks/useAuthor';
 import { useQuery, useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 import { useInView } from 'react-intersection-observer';
 import { useNostr } from '@nostrify/react';
 import { BlossomUploader } from '@nostrify/nostrify/uploaders';
-import type { NostrEvent as NostrifyEvent } from '@nostrify/nostrify';
 import { queryWithNip65Fanout, getNip65ReadRelays } from '@/lib/queryRelays';
 import {
   Plus,
@@ -35,7 +32,8 @@ import {
   Smile,
   Loader2,
   Library,
-  Clock
+  Clock,
+  RefreshCw,
 } from 'lucide-react';
 import { MediaSelectorDialog } from './MediaSelectorDialog';
 import { SchedulePicker } from './SchedulePicker';
@@ -71,42 +69,7 @@ interface NoteStats {
 
 // --- Helper Components ---
 
-function AuthorInfo({ pubkey }: { pubkey: string }) {
-  const { data: author } = useAuthor(pubkey);
-  let npub = '';
-  try {
-    if (pubkey && /^[0-9a-f]{64}$/.test(pubkey)) {
-      npub = nip19.npubEncode(pubkey);
-    }
-  } catch (e) {
-    console.error('Error encoding npub:', e);
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <Avatar className="h-5 w-5">
-        <AvatarImage src={author?.metadata?.picture} />
-        <AvatarFallback>{author?.metadata?.name?.charAt(0) || '?'}</AvatarFallback>
-      </Avatar>
-      {npub ? (
-        <a
-          href={`https://nostr.at/${npub}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs font-medium hover:underline"
-        >
-          {author?.metadata?.name || author?.metadata?.display_name || 'Anonymous'}
-        </a>
-      ) : (
-        <span className="text-xs font-medium">
-          {author?.metadata?.name || author?.metadata?.display_name || 'Anonymous'}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function useNoteStats(noteId: string, notePubkey: string): NoteStats & { isLoading: boolean } {
+function useNoteStats(noteId: string, _notePubkey: string): NoteStats & { isLoading: boolean } {
   const { nostr } = useNostr();
   const { config } = useAppContext();
   const nip65ReadRelays = getNip65ReadRelays(config.relayMetadata);
@@ -173,7 +136,6 @@ function NoteCard({
   gateway,
   onEdit,
   onDelete,
-  onPublish,
   engagementFilters
 }: {
   note: Note;
@@ -340,6 +302,7 @@ export default function AdminNotes() {
   const { mutateAsync: createScheduledPost, isPending: isScheduling } = useCreateScheduledPost();
   const { mutateAsync: updateScheduledPost } = useUpdateScheduledPost();
   const { data: isSchedulerHealthy } = useSchedulerHealth();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const gateway = config.siteConfig?.nip19Gateway || 'https://nostr.at';
 
@@ -377,7 +340,7 @@ export default function AdminNotes() {
     hasNextPage,
     isFetchingNextPage,
     refetch: refetchPublished
-  } = useInfiniteQuery<Note[], Error, InfiniteData<Note[]>, any, number | undefined>({
+  } = useInfiniteQuery<Note[], Error, InfiniteData<Note[]>, readonly unknown[], number | undefined>({
     queryKey: ['admin-notes-published', user?.pubkey],
     initialPageParam: undefined,
     queryFn: async ({ pageParam }) => {
@@ -473,10 +436,18 @@ export default function AdminNotes() {
     enabled: !!nostr && !!user?.pubkey,
   });
 
-  const refetchAll = useCallback(() => {
-    refetchPublished();
-    refetchDrafts();
+  const refetchAll = useCallback(async () => {
+    await Promise.all([refetchPublished(), refetchDrafts()]);
   }, [refetchPublished, refetchDrafts]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetchAll();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Initialize selected relays
   useEffect(() => {
@@ -1068,10 +1039,16 @@ export default function AdminNotes() {
                 Create and manage your short-form notes (Kind 1).
               </p>
             </div>
-            <Button onClick={() => { setEditingNote(null); setContent(''); setScheduleConfig({ enabled: false, scheduledFor: null }); setIsCreating(true); }}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Note
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+              <Button onClick={() => { setEditingNote(null); setContent(''); setScheduleConfig({ enabled: false, scheduledFor: null }); setIsCreating(true); }}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Note
+              </Button>
+            </div>
           </div>
 
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'drafts' | 'published')}>

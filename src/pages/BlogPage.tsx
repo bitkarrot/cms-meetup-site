@@ -10,7 +10,7 @@ import { useDefaultRelay } from '@/hooks/useDefaultRelay';
 import { getMasterPubkey } from '@/lib/relay';
 import { useAppContext } from '@/hooks/useAppContext';
 import Navigation from '@/components/Navigation';
-import { Search, Calendar, Edit } from 'lucide-react';
+import { Search, Calendar, Edit, RefreshCw } from 'lucide-react';
 import { AuthorInfo } from '@/components/AuthorInfo';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -29,11 +29,12 @@ export default function BlogPage() {
   const { config } = useAppContext();
   const { nostr } = useDefaultRelay();
   const [searchTerm, setSearchTerm] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const { data: posts = [], isLoading } = useQuery({
+  const { data: posts = [], isLoading, refetch } = useQuery({
     queryKey: ['blog-posts', config.siteConfig?.adminRoles],
     queryFn: async () => {
-      const signal = AbortSignal.timeout(2000);
+      const signal = AbortSignal.timeout(5000);
       const postList = await nostr!.query([
         { kinds: [30023], limit: 100 }
       ], { signal });
@@ -61,6 +62,15 @@ export default function BlogPage() {
     },
     enabled: !!nostr,
   });
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const filteredPosts = posts.filter(post => 
     post.published && (
@@ -94,6 +104,12 @@ export default function BlogPage() {
             <p className="text-lg text-muted-foreground">
               Read our latest community updates and insights
             </p>
+            <div className="mt-4">
+              <Button variant="outline" onClick={handleRefresh} disabled={isRefreshing}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh Posts
+              </Button>
+            </div>
           </div>
 
           {/* Search */}
