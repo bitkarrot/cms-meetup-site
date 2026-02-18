@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { SimplePool } from 'nostr-tools/pool';
 
 const distDir = path.resolve(process.cwd(), 'dist');
 const indexPath = path.join(distDir, 'index.html');
@@ -8,25 +9,82 @@ const SEO_META_START = '<!-- SEO_META_START -->';
 const SEO_META_END = '<!-- SEO_META_END -->';
 
 const siteUrl = (process.env.VITE_SITE_URL || '').replace(/\/$/, '');
-const defaultOgImage = process.env.VITE_OG_IMAGE || '';
+const envOgImage = process.env.VITE_OG_IMAGE || '';
+const relayUrl = (process.env.VITE_DEFAULT_RELAY || '').replace(/\/$/, '');
+const masterPubkey = (process.env.VITE_MASTER_PUBKEY || '').trim().toLowerCase();
 
-const routes = [
-  {
-    path: '/',
-    title: 'Community Meetup Site',
-    description: 'Join us for amazing meetups and events',
-  },
-  {
-    path: '/blog',
-    title: 'Blog - Community Meetup',
-    description: 'Read our latest blog posts and community updates.',
-  },
-  {
-    path: '/events',
-    title: 'Events - Community Meetup',
-    description: 'Browse upcoming and past community events and meetups.',
-  },
-];
+const DEFAULT_SITE_TITLE = 'Community Meetup Site';
+const DEFAULT_HOME_DESCRIPTION = 'Join us for amazing meetups and events';
+const DEFAULT_BLOG_DESCRIPTION = 'Read our latest blog posts and community updates.';
+const DEFAULT_EVENTS_DESCRIPTION = 'Browse upcoming and past community events and meetups.';
+const LEGACY_SITE_CONFIG_DTAG = 'nostr-meetup-site-config';
+
+function getScopedSiteConfigDTag(relay) {
+  return `nostr-meetup-site-config:${relay.replace(/\/$/, '')}`;
+}
+
+function pickLatestEvent(events) {
+  return [...events].sort((a, b) => b.created_at - a.created_at)[0] || null;
+}
+
+async function fetchSiteConfigFromRelay() {
+  if (!relayUrl || !masterPubkey) {
+    console.log('[seo] skipping relay site-config fetch (missing VITE_DEFAULT_RELAY or VITE_MASTER_PUBKEY)');
+    return null;
+  }
+
+  const pool = new SimplePool({ enableReconnect: false });
+
+  try {
+    const scopedEvents = await pool.querySync(
+      [relayUrl],
+      {
+        kinds: [30078],
+        authors: [masterPubkey],
+        '#d': [getScopedSiteConfigDTag(relayUrl)],
+        limit: 5,
+      },
+      { maxWait: 5000 },
+    );
+
+    let configEvent = pickLatestEvent(scopedEvents);
+
+    if (!configEvent) {
+      const legacyEvents = await pool.querySync(
+        [relayUrl],
+        {
+          kinds: [30078],
+          authors: [masterPubkey],
+          '#d': [LEGACY_SITE_CONFIG_DTAG],
+          limit: 5,
+        },
+        { maxWait: 5000 },
+      );
+      configEvent = pickLatestEvent(legacyEvents);
+    }
+
+    if (!configEvent) {
+      console.log('[seo] no kind 30078 site-config event found, using defaults');
+      return null;
+    }
+
+    const title = configEvent.tags.find(([name]) => name === 'title')?.[1] || '';
+    const heroSubtitle = configEvent.tags.find(([name]) => name === 'hero_subtitle')?.[1] || '';
+    const ogImage = configEvent.tags.find(([name]) => name === 'og_image')?.[1] || '';
+
+    return {
+      title,
+      heroSubtitle,
+      ogImage,
+    };
+  } catch (error) {
+    console.warn('[seo] failed to fetch kind 30078 site-config, using defaults:', error);
+    return null;
+  } finally {
+    pool.close([relayUrl]);
+    pool.destroy();
+  }
+}
 
 function escapeHtml(value) {
   return value
@@ -35,6 +93,32 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function buildRoutes(siteConfig) {
+  const siteTitle = siteConfig?.title || DEFAULT_SITE_TITLE;
+  const homeDescription = siteConfig?.heroSubtitle || DEFAULT_HOME_DESCRIPTION;
+
+  return [
+    {
+      path: '/',
+      title: siteTitle,
+      description: homeDescription,
+      previewImage: envOgImage || siteConfig?.ogImage || '',
+    },
+    {
+      path: '/blog',
+      title: `Blog - ${siteTitle}`,
+      description: DEFAULT_BLOG_DESCRIPTION,
+      previewImage: envOgImage || siteConfig?.ogImage || '',
+    },
+    {
+      path: '/events',
+      title: `Events - ${siteTitle}`,
+      description: DEFAULT_EVENTS_DESCRIPTION,
+      previewImage: envOgImage || siteConfig?.ogImage || '',
+    },
+  ];
 }
 
 function toAbsoluteUrl(value) {
@@ -49,7 +133,7 @@ function buildSeoMetaBlock(route) {
   const title = escapeHtml(route.title);
   const description = escapeHtml(route.description);
   const ogUrl = toAbsoluteUrl(route.path);
-  const ogImage = toAbsoluteUrl(defaultOgImage);
+  const ogImage = toAbsoluteUrl(route.previewImage || '');
 
   const lines = [
     `    <title>${title}</title>`,
@@ -84,6 +168,8 @@ function outputPathForRoute(routePath) {
 
 async function generateRouteMetaHtml() {
   const sourceHtml = await readFile(indexPath, 'utf8');
+  const siteConfig = await fetchSiteConfigFromRelay();
+  const routes = buildRoutes(siteConfig);
 
   if (!sourceHtml.includes(SEO_META_START) || !sourceHtml.includes(SEO_META_END)) {
     throw new Error('SEO markers not found in index.html.');
