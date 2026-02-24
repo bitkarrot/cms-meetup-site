@@ -18,8 +18,7 @@ import { RefreshCw, XCircle, Calendar as CalendarIcon, Wifi, Trash2, GripVertica
 const DEFAULT_RELAYS = [
     { url: 'wss://relay.damus.io', read: true, write: true },
     { url: 'wss://nos.lol', read: true, write: true },
-    { url: 'wss://relay.primal.net', read: true, write: true },
-    { url: 'wss://relay.nostr.band', read: true, write: true },
+    { url: 'wss://relay.primal.net', read: true, write: true }
 ];
 import { NRelay1, NostrEvent } from '@nostrify/nostrify';
 import { format, addHours, differenceInHours } from 'date-fns';
