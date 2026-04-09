@@ -209,7 +209,10 @@ export default function AdminScheduledPage() {
     navigate(targetPath, { state: { editingScheduledPost: editData } });
   };
 
-  const filteredPosts = scheduledPosts?.filter((post) => post.status === activeTab) || [];
+  const pendingPosts = scheduledPosts?.filter((post) => post.status === 'pending') || [];
+  const publishedPosts = scheduledPosts?.filter((post) => post.status === 'published') || [];
+  const failedPosts = scheduledPosts?.filter((post) => post.status === 'failed') || [];
+  const filteredPosts = activeTab === 'pending' ? pendingPosts : activeTab === 'published' ? publishedPosts : failedPosts;
 
   const handleClearHistory = async (status: 'published' | 'failed') => {
     if (!user?.pubkey) return;
@@ -388,7 +391,7 @@ export default function AdminScheduledPage() {
         </TabsContent>
 
         <TabsContent value="published" className="mt-4 space-y-4">
-          {filteredPosts.length > 0 && (
+          {publishedPosts.length > 0 && (
             <div className="flex justify-end">
               <Button
                 variant="outline"
@@ -425,7 +428,7 @@ export default function AdminScheduledPage() {
         </TabsContent>
 
         <TabsContent value="failed" className="mt-4 space-y-4">
-          {filteredPosts.length > 0 && (
+          {failedPosts.length > 0 && (
             <div className="flex justify-end">
               <Button
                 variant="outline"
