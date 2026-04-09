@@ -9,6 +9,7 @@ import { useAppContext } from '@/hooks/useAppContext';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useToast } from '@/hooks/useToast';
+import { isBlockedRelay } from '@/lib/blockedRelays';
 
 interface Relay {
   url: string;
@@ -26,8 +27,10 @@ export function RelayListManager() {
   const [newRelayUrl, setNewRelayUrl] = useState('');
 
   // Sync local state with config when it changes (e.g., from NostrProvider sync)
+  // Filter out blocked relays on sync
   useEffect(() => {
-    setRelays(config.relayMetadata.relays);
+    const filteredRelays = config.relayMetadata.relays.filter(r => !isBlockedRelay(r.url));
+    setRelays(filteredRelays);
   }, [config.relayMetadata.relays]);
 
   const normalizeRelayUrl = (url: string): string => {
@@ -67,6 +70,16 @@ export function RelayListManager() {
     }
 
     const normalized = normalizeRelayUrl(newRelayUrl);
+
+    // Check if relay is blocked
+    if (isBlockedRelay(normalized)) {
+      toast({
+        title: 'Relay not allowed',
+        description: 'This relay is blocked due to reliability issues and cannot be added.',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     if (relays.some(r => r.url === normalized)) {
       toast({

@@ -43,7 +43,7 @@ export default function FeedPage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage
-  } = useInfiniteQuery<NostrEvent[], Error, InfiniteData<NostrEvent[]>, any, number | undefined>({
+  } = useInfiniteQuery<NostrEvent[], Error, InfiniteData<NostrEvent[]>, unknown[], number | undefined>({
     queryKey: ['feed-notes', pubkeys, readFromPublishRelays, publishRelays],
     initialPageParam: undefined,
     queryFn: async ({ pageParam }) => {

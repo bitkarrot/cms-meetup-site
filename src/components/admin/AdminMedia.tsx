@@ -42,6 +42,20 @@ interface BlossomBlob {
   uploaded?: number;
 }
 
+function getMediaPreviewKind(blob: BlossomBlob): 'image' | 'video' | null {
+  const mime = (blob.type || '').toLowerCase();
+
+  if (mime === 'image/avif' || mime === 'image/heic' || mime === 'image/heif') {
+    return null;
+  }
+
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  return null;
+}
+
+const MAX_EAGER_PREVIEWS = 24;
+
 // --- Components ---
 
 /**
@@ -257,6 +271,17 @@ function BrowseMediaSection() {
   }, [blossomRelays, selectedRelay]);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [mediaType, setMediaType] = useState<'all' | 'image' | 'video'>('all');
+  const [failedPreviewUrls, setFailedPreviewUrls] = useState<Set<string>>(new Set());
+
+  const isPreviewFailed = (url: string) => failedPreviewUrls.has(url);
+  const markPreviewFailed = (url: string) => {
+    setFailedPreviewUrls((prev) => {
+      if (prev.has(url)) return prev;
+      const next = new Set(prev);
+      next.add(url);
+      return next;
+    });
+  };
 
   const { data: blobs, isLoading, error, refetch } = useQuery({
     queryKey: ['blossom-blobs', selectedRelay, user?.pubkey],
@@ -279,7 +304,11 @@ function BrowseMediaSection() {
           const authBase64 = btoa(JSON.stringify(authEvent));
           headers['Authorization'] = `Nostr ${authBase64}`;
         } catch (e) {
-          console.error('Failed to sign Blossom list event:', e);
+          // Some signers (e.g. browser-extension signer without extension installed)
+          // are expected to fail here. Continue without auth header.
+          if (!(e instanceof Error) || !/browser extension not available/i.test(e.message)) {
+            console.warn('Failed to sign Blossom list event:', e);
+          }
         }
       }
 
@@ -379,14 +408,16 @@ function BrowseMediaSection() {
               </div>
             ) : viewMode === 'grid' ? (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {filteredBlobs.map(blob => (
-                  <div key={blob.sha256} className="group relative aspect-square rounded-lg border bg-muted overflow-hidden">
-                    {blob.type?.startsWith('image/') ? (
-                      <img src={blob.url} alt="" className="h-full w-full object-cover" />
-                    ) : blob.type?.startsWith('video/') ? (
+                {filteredBlobs.map((blob, index) => {
+                  const shouldTryPreview = index < MAX_EAGER_PREVIEWS && !isPreviewFailed(blob.url);
+
+                  return <div key={blob.sha256} className="group relative aspect-square rounded-lg border bg-muted overflow-hidden">
+                    {getMediaPreviewKind(blob) === 'image' && shouldTryPreview ? (
+                      <img src={blob.url} alt="" loading="lazy" className="h-full w-full object-cover" onError={() => markPreviewFailed(blob.url)} />
+                    ) : getMediaPreviewKind(blob) === 'video' && shouldTryPreview ? (
                       <div className="h-full w-full flex items-center justify-center bg-black">
                         <Play className="h-8 w-8 text-white/50" />
-                        <video src={blob.url} className="absolute inset-0 h-full w-full object-cover opacity-30" />
+                        <video src={blob.url} className="absolute inset-0 h-full w-full object-cover opacity-30" onError={() => markPreviewFailed(blob.url)} />
                       </div>
                     ) : (
                       <div className="h-full w-full flex items-center justify-center">
@@ -412,8 +443,8 @@ function BrowseMediaSection() {
                         )}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  </div>;
+                })}
               </div>
             ) : viewMode === 'list' ? (
               <div className="space-y-1">
@@ -424,15 +455,17 @@ function BrowseMediaSection() {
                   <div className="w-32 text-right">Date</div>
                   <div className="w-12 text-right">Actions</div>
                 </div>
-                {filteredBlobs.map(blob => (
-                  <div key={blob.sha256} className="flex items-center gap-4 px-4 py-2 hover:bg-muted/50 transition-colors rounded-md group">
+                {filteredBlobs.map((blob, index) => {
+                  const shouldTryPreview = index < MAX_EAGER_PREVIEWS && !isPreviewFailed(blob.url);
+
+                  return <div key={blob.sha256} className="flex items-center gap-4 px-4 py-2 hover:bg-muted/50 transition-colors rounded-md group">
                     <div className="flex-1 flex items-center gap-3 overflow-hidden">
                       <div className="h-6 w-6 rounded border bg-muted flex-shrink-0 overflow-hidden flex items-center justify-center">
-                        {blob.type?.startsWith('image/') ? (
-                          <img src={blob.url} alt="" className="h-full w-full object-cover" />
+                        {getMediaPreviewKind(blob) === 'image' && shouldTryPreview ? (
+                          <img src={blob.url} alt="" loading="lazy" className="h-full w-full object-cover" onError={() => markPreviewFailed(blob.url)} />
                         ) : (
                           <div className="h-full w-full flex items-center justify-center">
-                            {blob.type?.startsWith('video/') ? <FileVideo className="h-3 w-3" /> : <FileImage className="h-3 w-3" />}
+                            {getMediaPreviewKind(blob) === 'video' && shouldTryPreview ? <FileVideo className="h-3 w-3" /> : <FileImage className="h-3 w-3" />}
                           </div>
                         )}
                       </div>
@@ -458,8 +491,8 @@ function BrowseMediaSection() {
                         <Copy className="h-4 w-4" />
                       </Button>
                     </div>
-                  </div>
-                ))}
+                  </div>;
+                })}
               </div>
             ) : null}
           </Tabs>

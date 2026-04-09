@@ -1,3 +1,5 @@
+import { nip19 } from 'nostr-tools';
+
 /**
  * Swarm runtime config utilities.
  *
@@ -35,7 +37,18 @@ function getSwarmConfig(): SwarmConfig {
  */
 export function getMasterPubkey(): string {
   const envPubkey = import.meta.env.VITE_MASTER_PUBKEY;
-  if (envPubkey) return envPubkey.toLowerCase().trim();
+  if (envPubkey) {
+    const trimmed = envPubkey.trim();
+    if (trimmed.startsWith('npub1')) {
+      try {
+        const decoded = nip19.decode(trimmed);
+        if (decoded.type === 'npub') return (decoded.data as string).toLowerCase();
+      } catch {
+        // fall through
+      }
+    }
+    return trimmed.toLowerCase();
+  }
 
   const injected = getSwarmConfig().masterPubkey;
   if (injected) return injected.toLowerCase().trim();

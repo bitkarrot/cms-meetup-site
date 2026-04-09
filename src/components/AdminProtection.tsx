@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { useAdminAuth } from '@/contexts/AdminAuthContext';
 import { LoginArea } from '@/components/auth/LoginArea';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 

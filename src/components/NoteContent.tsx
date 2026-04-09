@@ -17,14 +17,9 @@ function isImageUrl(url: string) {
     const urlObj = new URL(url);
     const path = urlObj.pathname.split('#')[0]?.split('?')[0] ?? '';
 
-    // Check for common image extensions
-    if (/\.(png|jpe?g|gif|webp|bmp|svg|avif|heic|heif)$/i.test(path)) return true;
-
-    // Check for Blossom-style SHA256 hashes (64 hex characters)
-    // Blossom URLs often look like https://server.com/sha256
-    const pathParts = path.split('/');
-    const lastPart = pathParts[pathParts.length - 1];
-    if (/^[0-9a-f]{64}$/i.test(lastPart)) return true;
+    // Only auto-embed when URL explicitly looks like an image file.
+    // Bare Blossom hashes can point to any content type and cause noisy load errors.
+    if (/\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(path)) return true;
 
     return false;
   } catch {
@@ -144,27 +139,21 @@ export function NoteContent({
             const pubkey = decoded.data;
             const npub = nip19.npubEncode(pubkey);
             parts.push(
-              <a
+              <NostrMention
                 key={`mention-${keyCounter++}`}
+                pubkey={pubkey}
                 href={`${cleanGateway}/${npub}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <NostrMention pubkey={pubkey} />
-              </a>
+              />
             );
           } else if (decoded.type === 'nprofile') {
             const pubkey = decoded.data.pubkey;
             const nprofile = nip19.nprofileEncode(decoded.data);
             parts.push(
-              <a
+              <NostrMention
                 key={`mention-${keyCounter++}`}
+                pubkey={pubkey}
                 href={`${cleanGateway}/${nprofile}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <NostrMention pubkey={pubkey} />
-              </a>
+              />
             );
           } else {
             // For other types, just show as a link
@@ -222,13 +211,16 @@ export function NoteContent({
 }
 
 // Helper component to display user mentions
-function NostrMention({ pubkey }: { pubkey: string }) {
+function NostrMention({ pubkey, href }: { pubkey: string; href: string }) {
   const author = useAuthor(pubkey);
   const hasRealName = !!author.data?.metadata?.name;
   const displayName = author.data?.metadata?.name ?? genUserName(pubkey);
 
   return (
-    <span
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
       className={cn(
         "font-medium hover:underline",
         hasRealName
@@ -237,6 +229,6 @@ function NostrMention({ pubkey }: { pubkey: string }) {
       )}
     >
       @{displayName}
-    </span>
+    </a>
   );
 }

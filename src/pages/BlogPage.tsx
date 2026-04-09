@@ -81,12 +81,21 @@ export default function BlogPage() {
   );
 
   const siteTitle = config.siteConfig?.title || 'Community Meetup';
+  const pageTitle = `Blog - ${siteTitle}`;
+  const pageDescription = 'Read our latest blog posts and community updates.';
+  const previewImage = config.siteConfig?.ogImage;
 
   useSeoMeta({
-    title: `Blog - ${siteTitle}`,
-    description: 'Read our latest blog posts and community updates.',
-    ogImage: config.siteConfig?.ogImage,
-    twitterImage: config.siteConfig?.ogImage,
+    title: pageTitle,
+    description: pageDescription,
+    ogTitle: pageTitle,
+    ogDescription: pageDescription,
+    ogType: 'website',
+    ogImage: previewImage,
+    twitterCard: 'summary_large_image',
+    twitterTitle: pageTitle,
+    twitterDescription: pageDescription,
+    twitterImage: previewImage,
   });
 
   if (isLoading) {

@@ -4,6 +4,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAppContext } from '@/hooks/useAppContext';
 import { type AppConfig } from '@/contexts/AppContext';
 import { getDefaultRelayUrl, getMasterPubkey, getSiteConfigDTag, LEGACY_SITE_CONFIG_DTAG } from '@/lib/relay';
+import { isBlockedRelay } from '@/lib/blockedRelays';
 
 /**
  * NostrSync - Syncs user's Nostr data
@@ -42,10 +43,10 @@ export function NostrSync() {
                 url,
                 read: !marker || marker === 'read',
                 write: !marker || marker === 'write',
-              }));
+              }))
+              .filter(r => !isBlockedRelay(r.url)); // Exclude blocked relays
 
             if (fetchedRelays.length > 0) {
-              console.log('[NostrSync] Syncing relay list from Nostr:', fetchedRelays);
               updateConfig((current) => ({
                 ...current,
                 relayMetadata: {
@@ -70,8 +71,6 @@ export function NostrSync() {
 
     const syncSiteConfigFromMaster = async () => {
       try {
-        console.log('[NostrSync] Fetching site config from master:', masterPubkey);
-
         // Get the current default relay (env var or auto-derived from domain)
         const envDefaultRelay = getDefaultRelayUrl();
 
@@ -80,9 +79,6 @@ export function NostrSync() {
         const relayHasChanged = envDefaultRelay && localStoredRelay && envDefaultRelay !== localStoredRelay;
 
         if (relayHasChanged) {
-          console.log('[NostrSync] Default relay has changed from', localStoredRelay, 'to', envDefaultRelay);
-          console.log('[NostrSync] Skipping relay sync and prioritizing environment variable');
-
           // Update config to use the new relay from environment variable
           updateConfig((current) => ({
             ...current,
@@ -111,7 +107,6 @@ export function NostrSync() {
 
         // Migration fallback: try legacy unscoped d-tag if no scoped config found
         if (events.length === 0) {
-          console.log('[NostrSync] No scoped config found, trying legacy d-tag');
           events = await nostr.query(
             [{
               kinds: [30078],
@@ -126,10 +121,7 @@ export function NostrSync() {
           if (events.length > 0) {
             const legacyRelay = events[0].tags.find(([name]) => name === 'default_relay')?.[1];
             if (legacyRelay && envDefaultRelay && legacyRelay !== envDefaultRelay) {
-              console.log('[NostrSync] Legacy config belongs to different site (relay:', legacyRelay, '), ignoring');
               events = [];
-            } else {
-              console.log('[NostrSync] Using legacy config (relay matches)');
             }
           }
         }
@@ -165,9 +157,6 @@ export function NostrSync() {
           const eventRelayDiffersFromEnv = envDefaultRelay && relayFromEvent && envDefaultRelay !== relayFromEvent;
 
           if (eventRelayDiffersFromEnv) {
-            console.log('[NostrSync] Relay in Nostr event', relayFromEvent, 'differs from default relay', envDefaultRelay);
-            console.log('[NostrSync] Prioritizing environment variable over relay data');
-
             // Override the relay from the event with the environment variable
             loadedConfig.defaultRelay = envDefaultRelay;
           }
@@ -175,7 +164,6 @@ export function NostrSync() {
           // Only update if the event is newer than our current local site config
           // BUT always apply when relay mismatch is detected (env var takes precedence)
           if (!eventRelayDiffersFromEnv && config.siteConfig?.updatedAt && eventUpdatedAt <= config.siteConfig.updatedAt) {
-            console.log('[NostrSync] Stored local config is newer or same as master event, skipping sync');
             hasSyncedConfig.current = true;
             return;
           }
@@ -242,7 +230,6 @@ export function NostrSync() {
             console.warn('[NostrSync] Failed to parse navigation content', e);
           }
 
-          console.log('[NostrSync] Successfully fetched master config');
           updateConfig((current) => ({
             ...current,
             siteConfig: {

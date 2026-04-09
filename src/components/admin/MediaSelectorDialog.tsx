@@ -17,8 +17,7 @@ import {
   FileVideo,
   Play,
   AlertCircle,
-  Upload,
-  Image as ImageIcon
+  Upload
 } from 'lucide-react';
 import { useAppContext } from '@/hooks/useAppContext';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -36,6 +35,20 @@ interface BlossomBlob {
   type?: string;
   uploaded?: number;
 }
+
+function getMediaPreviewKind(blob: BlossomBlob): 'image' | 'video' | null {
+  const mime = (blob.type || '').toLowerCase();
+
+  if (mime === 'image/avif' || mime === 'image/heic' || mime === 'image/heif') {
+    return null;
+  }
+
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  return null;
+}
+
+const MAX_EAGER_PREVIEWS = 24;
 
 interface MediaSelectorDialogProps {
   open: boolean;
@@ -59,6 +72,17 @@ export function MediaSelectorDialog({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [mediaType, setMediaType] = useState<'all' | 'image' | 'video'>('all');
   const [selectedRelay, setSelectedRelay] = useState<string>('');
+  const [failedPreviewUrls, setFailedPreviewUrls] = useState<Set<string>>(new Set());
+
+  const isPreviewFailed = (url: string) => failedPreviewUrls.has(url);
+  const markPreviewFailed = (url: string) => {
+    setFailedPreviewUrls((prev) => {
+      if (prev.has(url)) return prev;
+      const next = new Set(prev);
+      next.add(url);
+      return next;
+    });
+  };
 
   // Blossom relays logic (same as AdminMedia)
   const blossomRelays = useMemo(() => {
@@ -108,7 +132,11 @@ export function MediaSelectorDialog({
           const authBase64 = btoa(JSON.stringify(authEvent));
           headers['Authorization'] = `Nostr ${authBase64}`;
         } catch (e) {
-          console.error('Failed to sign Blossom list event:', e);
+          // Some signers (e.g. browser-extension signer without extension installed)
+          // are expected to fail here. Continue without auth header.
+          if (!(e instanceof Error) || !/browser extension not available/i.test(e.message)) {
+            console.warn('Failed to sign Blossom list event:', e);
+          }
         }
       }
 
@@ -189,7 +217,7 @@ export function MediaSelectorDialog({
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col p-6 pt-2">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'browse' | 'upload')} className="flex-1 flex flex-col">
             <TabsList className="grid w-full grid-cols-2 mb-4">
               <TabsTrigger value="browse">
                 <Search className="h-4 w-4 mr-2" />
@@ -204,7 +232,7 @@ export function MediaSelectorDialog({
             <TabsContent value="browse" className="flex-1 overflow-hidden flex flex-col mt-0">
               <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                 <div className="flex items-center gap-2">
-                  <Tabs value={mediaType} onValueChange={(v) => setMediaType(v as any)}>
+                  <Tabs value={mediaType} onValueChange={(v) => setMediaType(v as 'all' | 'image' | 'video')}>
                     <TabsList>
                       <TabsTrigger value="all">All</TabsTrigger>
                       <TabsTrigger value="image">Images</TabsTrigger>
@@ -273,18 +301,20 @@ export function MediaSelectorDialog({
                   </div>
                 ) : viewMode === 'grid' ? (
                   <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                    {filteredBlobs.map(blob => (
-                      <button
+                    {filteredBlobs.map((blob, index) => {
+                      const shouldTryPreview = index < MAX_EAGER_PREVIEWS && !isPreviewFailed(blob.url);
+
+                      return <button
                         key={blob.sha256}
                         onClick={() => onSelect(blob.url)}
                         className="group relative aspect-square rounded-md border bg-muted overflow-hidden hover:ring-2 hover:ring-primary transition-all text-left"
                       >
-                        {blob.type?.startsWith('image/') ? (
-                          <img src={blob.url} alt="" className="h-full w-full object-cover" />
-                        ) : blob.type?.startsWith('video/') ? (
+                        {getMediaPreviewKind(blob) === 'image' && shouldTryPreview ? (
+                          <img src={blob.url} alt="" loading="lazy" className="h-full w-full object-cover" onError={() => markPreviewFailed(blob.url)} />
+                        ) : getMediaPreviewKind(blob) === 'video' && shouldTryPreview ? (
                           <div className="h-full w-full flex items-center justify-center bg-black">
                             <Play className="h-6 w-6 text-white/50" />
-                            <video src={blob.url} className="absolute inset-0 h-full w-full object-cover opacity-30" />
+                            <video src={blob.url} className="absolute inset-0 h-full w-full object-cover opacity-30" onError={() => markPreviewFailed(blob.url)} />
                           </div>
                         ) : (
                           <div className="h-full w-full flex items-center justify-center">
@@ -296,23 +326,25 @@ export function MediaSelectorDialog({
                             {(blob.size / 1024).toFixed(0)}KB
                           </div>
                         </div>
-                      </button>
-                    ))}
+                      </button>;
+                    })}
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    {filteredBlobs.map(blob => (
-                      <button
+                    {filteredBlobs.map((blob, index) => {
+                      const shouldTryPreview = index < MAX_EAGER_PREVIEWS && !isPreviewFailed(blob.url);
+
+                      return <button
                         key={blob.sha256}
                         onClick={() => onSelect(blob.url)}
                         className="w-full flex items-center gap-3 p-2 hover:bg-muted rounded-md transition-colors text-left group"
                       >
                         <div className="h-8 w-8 rounded border bg-muted flex-shrink-0 overflow-hidden flex items-center justify-center">
-                          {blob.type?.startsWith('image/') ? (
-                            <img src={blob.url} alt="" className="h-full w-full object-cover" />
+                          {getMediaPreviewKind(blob) === 'image' && shouldTryPreview ? (
+                            <img src={blob.url} alt="" loading="lazy" className="h-full w-full object-cover" onError={() => markPreviewFailed(blob.url)} />
                           ) : (
                             <div className="h-full w-full flex items-center justify-center">
-                              {blob.type?.startsWith('video/') ? <FileVideo className="h-3 w-3" /> : <FileImage className="h-3 w-3" />}
+                              {getMediaPreviewKind(blob) === 'video' && shouldTryPreview ? <FileVideo className="h-3 w-3" /> : <FileImage className="h-3 w-3" />}
                             </div>
                           )}
                         </div>
@@ -322,8 +354,8 @@ export function MediaSelectorDialog({
                             {(blob.size / 1024).toFixed(1)} KB • {blob.type}
                           </div>
                         </div>
-                      </button>
-                    ))}
+                      </button>;
+                    })}
                   </div>
                 )}
               </div>

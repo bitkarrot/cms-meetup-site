@@ -141,12 +141,21 @@ export default function EventsPage() {
   };
 
   const siteTitle = appContext.siteConfig?.title || 'Community Meetup';
+  const pageTitle = `Events - ${siteTitle}`;
+  const pageDescription = 'Browse upcoming and past community events and meetups.';
+  const previewImage = appContext.siteConfig?.ogImage;
 
   useSeoMeta({
-    title: `Events - ${siteTitle}`,
-    description: 'Browse upcoming and past community events and meetups.',
-    ogImage: appContext.siteConfig?.ogImage,
-    twitterImage: appContext.siteConfig?.ogImage,
+    title: pageTitle,
+    description: pageDescription,
+    ogTitle: pageTitle,
+    ogDescription: pageDescription,
+    ogType: 'website',
+    ogImage: previewImage,
+    twitterCard: 'summary_large_image',
+    twitterTitle: pageTitle,
+    twitterDescription: pageDescription,
+    twitterImage: previewImage,
   });
 
   if (isLoading) {

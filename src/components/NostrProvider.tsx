@@ -4,6 +4,7 @@ import { NostrContext } from '@nostrify/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAppContext } from '@/hooks/useAppContext';
 import { getDefaultRelayUrl } from '@/lib/relay';
+import { isBlockedRelay } from '@/lib/blockedRelays';
 
 interface NostrProviderProps {
   children: React.ReactNode;
@@ -50,10 +51,11 @@ const NostrProvider: React.FC<NostrProviderProps> = (props) => {
       eventRouter(_event: NostrEvent) {
         const defaultRelay = getDefaultRelayUrl();
 
-        // Get write relays from NIP-65 metadata
+        // Get write relays from NIP-65 metadata, excluding blocked relays
         const writeRelays = relayMetadata.current.relays
           .filter(r => r.write)
-          .map(r => r.url);
+          .map(r => r.url)
+          .filter(url => !isBlockedRelay(url));
 
         // Always include default relay for writes
         const allRelays = new Set<string>(writeRelays);

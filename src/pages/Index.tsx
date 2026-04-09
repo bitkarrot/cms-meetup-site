@@ -394,12 +394,21 @@ const Index = () => {
   });
 
   const siteTitle = config.siteConfig?.title || 'Community Meetup Site';
+  const pageTitle = siteTitle;
+  const pageDescription = config.siteConfig?.heroSubtitle || 'Join us for amazing meetups and events';
+  const previewImage = config.siteConfig?.ogImage;
 
   useSeoMeta({
-    title: siteTitle,
-    description: config.siteConfig?.heroSubtitle || 'Join us for amazing meetups and events',
-    ogImage: config.siteConfig?.ogImage,
-    twitterImage: config.siteConfig?.ogImage,
+    title: pageTitle,
+    description: pageDescription,
+    ogTitle: pageTitle,
+    ogDescription: pageDescription,
+    ogType: 'website',
+    ogImage: previewImage,
+    twitterCard: 'summary_large_image',
+    twitterTitle: pageTitle,
+    twitterDescription: pageDescription,
+    twitterImage: previewImage,
   });
 
   if (eventsLoading || postsLoading) {

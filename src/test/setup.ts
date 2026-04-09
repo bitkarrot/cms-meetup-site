@@ -1,6 +1,22 @@
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
 
+// Ensure localStorage is available in jsdom (required by @nostrify/react)
+if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') {
+  const store: Record<string, string> = {};
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: {
+      getItem: (key: string) => store[key] ?? null,
+      setItem: (key: string, val: string) => { store[key] = val; },
+      removeItem: (key: string) => { delete store[key]; },
+      clear: () => { Object.keys(store).forEach(k => delete store[k]); },
+      get length() { return Object.keys(store).length; },
+      key: (i: number) => Object.keys(store)[i] ?? null,
+    },
+    writable: true,
+  });
+}
+
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
