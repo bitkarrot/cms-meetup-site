@@ -5,19 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Wallet, User, Zap } from 'lucide-react';
 import { useWallet } from '@/hooks/useWallet';
 import { Badge } from '@/components/ui/badge';
-import { PageLoadingIndicator } from '@/components/PageLoadingIndicator';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Navigate } from 'react-router-dom';
 import Navigation from '@/components/Navigation';
 
 export default function ProfilePage() {
-  const { user, isLoading } = useCurrentUser();
+  const { user } = useCurrentUser();
   const { hasNWC, activeNWC } = useWallet();
-
-  // Redirect to home if not logged in
-  if (isLoading) {
-    return <PageLoadingIndicator />;
-  }
 
   if (!user) {
     return <Navigate to="/" replace />;

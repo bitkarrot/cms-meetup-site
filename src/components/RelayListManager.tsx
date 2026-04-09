@@ -9,7 +9,7 @@ import { useAppContext } from '@/hooks/useAppContext';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useNostrPublish } from '@/hooks/useNostrPublish';
 import { useToast } from '@/hooks/useToast';
-import { isBlockedRelay, BLOCKED_RELAYS } from '@/lib/blockedRelays';
+import { isBlockedRelay } from '@/lib/blockedRelays';
 
 interface Relay {
   url: string;
@@ -75,7 +75,7 @@ export function RelayListManager() {
     if (isBlockedRelay(normalized)) {
       toast({
         title: 'Relay not allowed',
-        description: `This relay is blocked and cannot be added. Blocked relays: ${BLOCKED_RELAYS.join(', ')}`,
+        description: 'This relay is blocked due to reliability issues and cannot be added.',
         variant: 'destructive',
       });
       return;
