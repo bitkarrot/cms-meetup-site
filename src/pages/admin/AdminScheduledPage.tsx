@@ -7,7 +7,13 @@
 import { useState } from 'react';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useNavigate } from 'react-router-dom';
-import { useScheduledPosts, useScheduledPostsStats, useDeleteScheduledPost, useUpdateScheduledPost, getTimeRemaining } from '@/hooks/useScheduledPosts';
+import {
+  useScheduledPosts,
+  useScheduledPostsStats,
+  useDeleteScheduledPost,
+  useClearScheduledPostsHistory,
+  getTimeRemaining,
+} from '@/hooks/useScheduledPosts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -150,7 +156,7 @@ export default function AdminScheduledPage() {
   const { data: scheduledPosts, isLoading } = useScheduledPosts(user?.pubkey);
   const { data: stats } = useScheduledPostsStats(user?.pubkey);
   const { mutateAsync: deletePost } = useDeleteScheduledPost();
-  const { mutateAsync: _updatePost } = useUpdateScheduledPost();
+  const { mutateAsync: clearHistory, isPending: isClearingHistory } = useClearScheduledPostsHistory();
   const [activeTab, setActiveTab] = useState<'pending' | 'published' | 'failed'>('pending');
   const { data: isSchedulerHealthy, isLoading: isHealthLoading } = useSchedulerHealth();
 
@@ -203,7 +209,47 @@ export default function AdminScheduledPage() {
     navigate(targetPath, { state: { editingScheduledPost: editData } });
   };
 
-  const filteredPosts = scheduledPosts?.filter((post) => post.status === activeTab) || [];
+  const pendingPosts = scheduledPosts?.filter((post) => post.status === 'pending') || [];
+  const publishedPosts = scheduledPosts?.filter((post) => post.status === 'published') || [];
+  const failedPosts = scheduledPosts?.filter((post) => post.status === 'failed') || [];
+  const filteredPosts = activeTab === 'pending' ? pendingPosts : activeTab === 'published' ? publishedPosts : failedPosts;
+
+  const handleClearHistory = async (status: 'published' | 'failed') => {
+    if (!user?.pubkey) return;
+
+    const postsToClear = (scheduledPosts || []).filter((post) => post.status === status);
+    if (postsToClear.length === 0) {
+      return;
+    }
+
+    const noun = status === 'published' ? 'published history' : 'failed history';
+    const confirmed = confirm(
+      `Clear ${postsToClear.length} ${noun} item${postsToClear.length > 1 ? 's' : ''}? This cannot be undone.`,
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await clearHistory({
+        ids: postsToClear.map((post) => post.id),
+        userPubkey: user.pubkey,
+        status,
+      });
+      toast({
+        title: 'History cleared',
+        description: `Removed ${postsToClear.length} ${noun} item${postsToClear.length > 1 ? 's' : ''}.`,
+      });
+    } catch (error) {
+      console.error(`Failed to clear ${status} history:`, error);
+      toast({
+        title: 'Error',
+        description: (error as Error).message || `Failed to clear ${status} history.`,
+        variant: 'destructive',
+      });
+    }
+  };
 
   // Check if Scheduler is enabled
   if (isHealthLoading) {
@@ -345,6 +391,23 @@ export default function AdminScheduledPage() {
         </TabsContent>
 
         <TabsContent value="published" className="mt-4 space-y-4">
+          {publishedPosts.length > 0 && (
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleClearHistory('published')}
+                disabled={isClearingHistory}
+              >
+                {isClearingHistory && activeTab === 'published' ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-2" />
+                )}
+                Clear History
+              </Button>
+            </div>
+          )}
           {isLoading ? (
             <Card>
               <CardContent className="pt-6 flex items-center justify-center">
@@ -365,6 +428,23 @@ export default function AdminScheduledPage() {
         </TabsContent>
 
         <TabsContent value="failed" className="mt-4 space-y-4">
+          {failedPosts.length > 0 && (
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleClearHistory('failed')}
+                disabled={isClearingHistory}
+              >
+                {isClearingHistory && activeTab === 'failed' ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-2" />
+                )}
+                Clear History
+              </Button>
+            </div>
+          )}
           {isLoading ? (
             <Card>
               <CardContent className="pt-6 flex items-center justify-center">

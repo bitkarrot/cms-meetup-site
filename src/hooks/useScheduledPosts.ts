@@ -7,8 +7,15 @@ import type {
   ScheduledPost,
   CreateScheduledPostInput,
   ScheduledPostStats,
+  ScheduledPostStatus,
+  NostrEvent,
 } from '@/types/scheduled';
 import { getSchedulerApiUrl } from '@/lib/scheduler';
+
+type NostrSigner = {
+  getPublicKey: () => Promise<string>;
+  signEvent: (event: Omit<NostrEvent, 'id' | 'sig'>) => Promise<NostrEvent>;
+};
 
 // API base URL - derived from VITE_SWARM_API_URL or VITE_DEFAULT_RELAY
 const API_BASE = getSchedulerApiUrl();
@@ -21,7 +28,7 @@ async function fetchWithNip98(urlStr: string, method: string, body?: unknown) {
 
   // 1. Create event kind 27235
   // We need to access window.nostr for signing
-  const nostr = (window as Window & { nostr?: { getPublicKey: () => Promise<string>; signEvent: (e: unknown) => Promise<unknown> } }).nostr;
+  const nostr = (window as Window & { nostr?: NostrSigner }).nostr;
   if (!nostr) {
     throw new Error('Nostr extension not found');
   }
@@ -201,6 +208,40 @@ export function useDeleteScheduledPost() {
     mutationFn: async ({ id, userPubkey: _userPubkey }: { id: string; userPubkey: string }) => {
       await fetchWithNip98(`/scheduler/delete?id=${id}`, 'DELETE');
       return id;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ['scheduled-posts', variables.userPubkey],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['scheduled-posts-stats', variables.userPubkey],
+      });
+    },
+  });
+}
+
+/**
+ * Clear scheduled post history for a specific status (published or failed)
+ */
+export function useClearScheduledPostsHistory() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      ids,
+      userPubkey: _userPubkey,
+      status,
+    }: {
+      ids: string[];
+      userPubkey: string;
+      status: ScheduledPostStatus;
+    }) => {
+      if (status === 'pending') {
+        throw new Error('Clearing pending posts in bulk is not supported');
+      }
+
+      await Promise.all(ids.map((id) => fetchWithNip98(`/scheduler/delete?id=${id}`, 'DELETE')));
+      return ids.length;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
