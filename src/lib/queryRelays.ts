@@ -1,4 +1,5 @@
 import type { NostrEvent, NostrFilter } from '@nostrify/nostrify';
+import { isBlockedRelay } from '@/lib/blockedRelays';
 
 /**
  * Query the default relay pool and fan out to additional NIP-65 relays,
@@ -42,10 +43,10 @@ export async function queryWithNip65Fanout(
 
 /**
  * Get the list of NIP-65 read relay URLs from relay metadata config.
- * Filters to only relays marked for reading.
+ * Filters to only relays marked for reading, excluding blocked relays.
  */
 export function getNip65ReadRelays(
   relayMetadata?: { relays: Array<{ url: string; read: boolean; write: boolean }> },
 ): string[] {
-  return relayMetadata?.relays?.filter((r) => r.read).map((r) => r.url) || [];
+  return relayMetadata?.relays?.filter((r) => r.read).map((r) => r.url).filter(url => !isBlockedRelay(url)) || [];
 }

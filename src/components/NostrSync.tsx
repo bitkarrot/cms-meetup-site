@@ -4,6 +4,7 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAppContext } from '@/hooks/useAppContext';
 import { type AppConfig } from '@/contexts/AppContext';
 import { getDefaultRelayUrl, getMasterPubkey, getSiteConfigDTag, LEGACY_SITE_CONFIG_DTAG } from '@/lib/relay';
+import { isBlockedRelay } from '@/lib/blockedRelays';
 
 /**
  * NostrSync - Syncs user's Nostr data
@@ -42,7 +43,8 @@ export function NostrSync() {
                 url,
                 read: !marker || marker === 'read',
                 write: !marker || marker === 'write',
-              }));
+              }))
+              .filter(r => !isBlockedRelay(r.url)); // Exclude blocked relays
 
             if (fetchedRelays.length > 0) {
               console.log('[NostrSync] Syncing relay list from Nostr:', fetchedRelays);
