@@ -150,7 +150,7 @@ export default function AdminScheduledPage() {
   const { data: scheduledPosts, isLoading } = useScheduledPosts(user?.pubkey);
   const { data: stats } = useScheduledPostsStats(user?.pubkey);
   const { mutateAsync: deletePost } = useDeleteScheduledPost();
-  const { mutateAsync: updatePost } = useUpdateScheduledPost();
+  const { mutateAsync: _updatePost } = useUpdateScheduledPost();
   const [activeTab, setActiveTab] = useState<'pending' | 'published' | 'failed'>('pending');
   const { data: isSchedulerHealthy, isLoading: isHealthLoading } = useSchedulerHealth();
 

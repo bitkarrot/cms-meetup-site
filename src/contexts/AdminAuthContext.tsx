@@ -1,11 +1,12 @@
 import { createContext, useContext, ReactNode } from 'react';
+import type { NUser } from '@nostrify/react/login';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useAdminAuth as useAdminAuthCheck } from '@/hooks/useRemoteNostrJson';
 
 interface AdminAuthContextType {
   isAdmin: boolean;
   isLoading: boolean;
-  user: any; // TODO: Type this properly
+  user: NUser | undefined;
 }
 
 const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefined);

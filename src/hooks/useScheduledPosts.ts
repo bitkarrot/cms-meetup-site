@@ -7,9 +7,7 @@ import type {
   ScheduledPost,
   CreateScheduledPostInput,
   ScheduledPostStats,
-  NostrEvent,
 } from '@/types/scheduled';
-import { Event } from 'nostr-tools';
 import { getSchedulerApiUrl } from '@/lib/scheduler';
 
 // API base URL - derived from VITE_SWARM_API_URL or VITE_DEFAULT_RELAY
@@ -18,12 +16,12 @@ const API_BASE = getSchedulerApiUrl();
 /**
  * Fetch wrapper that adds NIP-98 Authorization header
  */
-async function fetchWithNip98(urlStr: string, method: string, body?: any) {
+async function fetchWithNip98(urlStr: string, method: string, body?: unknown) {
   const url = urlStr.startsWith('http') ? urlStr : `${API_BASE}${urlStr}`;
 
   // 1. Create event kind 27235
   // We need to access window.nostr for signing
-  const nostr = (window as any).nostr;
+  const nostr = (window as Window & { nostr?: { getPublicKey: () => Promise<string>; signEvent: (e: unknown) => Promise<unknown> } }).nostr;
   if (!nostr) {
     throw new Error('Nostr extension not found');
   }
@@ -44,7 +42,6 @@ async function fetchWithNip98(urlStr: string, method: string, body?: any) {
   };
 
   // 2. Sign
-  // @ts-ignore
   const signed = await nostr.signEvent(event);
 
   // 3. Create Authorization header
@@ -201,7 +198,7 @@ export function useDeleteScheduledPost() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, userPubkey }: { id: string; userPubkey: string }) => {
+    mutationFn: async ({ id, userPubkey: _userPubkey }: { id: string; userPubkey: string }) => {
       await fetchWithNip98(`/scheduler/delete?id=${id}`, 'DELETE');
       return id;
     },
@@ -226,7 +223,7 @@ export function useUpdateScheduledPost() {
   return useMutation({
     mutationFn: async ({
       id,
-      userPubkey,
+      userPubkey: _userPubkey,
       updates,
     }: {
       id: string;

@@ -6,6 +6,7 @@ import { useAppContext } from '@/hooks/useAppContext';
 import { useAuthor } from '@/hooks/useAuthor';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useZapAnalytics } from '@/hooks/useZapAnalytics';
+import type { AnalyticsData } from '@/types/zaplytics';
 import { TimeRangeButtons } from '@/components/zaplytics/TimeRangeSelector';
 import { StatsCards } from '@/components/zaplytics/StatsCards';
 import { EarningsChart } from '@/components/zaplytics/EarningsChart';
@@ -115,7 +116,7 @@ export default function AdminZaplytics() {
   );
 
   // Only show skeletons on the very first load for a selected user
-  const isLoading = queryLoading && (!analytics || (analytics as any).totalZaps === 0);
+  const isLoading = queryLoading && (!analytics || (analytics as AnalyticsData).totalZaps === 0);
 
 
   const onUserChange = (pubkey: string) => {

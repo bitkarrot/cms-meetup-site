@@ -4,11 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -73,7 +71,6 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  Check,
   PanelRightOpen,
   PanelRightClose,
   Type,
@@ -110,6 +107,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { AuthorInfo } from '@/components/AuthorInfo';
+import type { NostrEvent } from '@nostrify/nostrify';
 
 // Form field types supported by formstr
 type FieldType =
@@ -141,17 +139,6 @@ interface FormField {
   maxLength?: number;
   min?: number;
   max?: number;
-}
-
-interface FormTemplate {
-  id: string;
-  name: string;
-  description?: string;
-  fields: FormField[];
-  settings: {
-    selfSign?: boolean;
-    encrypted?: boolean;
-  };
 }
 
 interface NostrForm {
@@ -636,8 +623,8 @@ const ResponseViewer: React.FC<ResponseViewerProps> = ({ form }) => {
 
       const queryRelay = async (relayUrl: string) => {
         try {
-          const r = (poolNostr as any).relay(relayUrl);
-          return await r.query(filters, { signal });
+          const r = (poolNostr as { relay: (url: string) => { query: (f: unknown[], o: { signal: AbortSignal }) => Promise<unknown[]> } }).relay(relayUrl);
+          return await r.query(filters, { signal }) as NostrEvent[];
         } catch (e) {
           console.error(`[ResponseViewer] Error querying ${relayUrl}:`, e);
           return [];
@@ -650,34 +637,34 @@ const ResponseViewer: React.FC<ResponseViewerProps> = ({ form }) => {
       ]);
 
       const allEvents = results
-        .filter((r): r is PromiseFulfilledResult<any[]> => r.status === 'fulfilled')
+        .filter((r): r is PromiseFulfilledResult<NostrEvent[]> => r.status === 'fulfilled')
         .flatMap(r => r.value);
 
       // Deduplicate by ID
       const uniqueEvents = Array.from(new Map(allEvents.map(e => [e.id, e])).values());
       return uniqueEvents.map(event => {
-        let answers = {};
+        let answers: Record<string, unknown> = {};
         try {
           const content = JSON.parse(event.content);
           // Support both array [{questionId, answer}, ...] and object { questionId: answer } formats
           if (Array.isArray(content)) {
-            answers = content.reduce((acc, curr) => {
+            answers = content.reduce((acc: Record<string, unknown>, curr: { questionId?: string; answer?: unknown }) => {
               if (curr.questionId) {
                 acc[curr.questionId] = curr.answer;
               }
               return acc;
-            }, {} as Record<string, any>);
+            }, {});
           } else {
             answers = content || {};
           }
-        } catch (e) {
+        } catch {
           console.warn('Failed to parse response content:', event.id);
         }
         return {
           id: event.id,
           pubkey: event.pubkey,
           created_at: event.created_at,
-          answers: answers as Record<string, any>
+          answers,
         };
       });
     },
@@ -692,19 +679,21 @@ const ResponseViewer: React.FC<ResponseViewerProps> = ({ form }) => {
     queryFn: async () => {
       const pubkeys = Array.from(new Set(responses!.map(r => r.pubkey)));
       const events = await nostr!.query([{ kinds: [0], authors: pubkeys }]);
-      const map: Record<string, any> = {};
+      const map: Record<string, { name?: string; display_name?: string }> = {};
       events.forEach(event => {
         try {
           const content = JSON.parse(event.content);
           map[event.pubkey] = content;
-        } catch (e) { }
+        } catch {
+          // ignore parse errors
+        }
       });
       return map;
     },
     staleTime: 5 * 60 * 1000,
   });
 
-  const getDisplayValue = (field: FormField, val: any) => {
+  const getDisplayValue = (field: FormField, val: unknown) => {
     if (val === undefined || val === null || val === '') return '';
 
     if (field.type === 'singleChoice' || field.type === 'multipleChoice') {
@@ -885,7 +874,7 @@ export default function AdminForms() {
   }, [initialPublishRelays, selectedRelays.length]);
 
   // Fetch forms from Nostr
-  const { data: allForms, isLoading, refetch } = useQuery({
+  const { data: allForms, isLoading: _isLoading, refetch } = useQuery({
     queryKey: ['admin-forms'],
     staleTime: 0,
     gcTime: 0,
@@ -947,9 +936,9 @@ export default function AdminForms() {
 
       const queryRelay = async (relayUrl: string) => {
         try {
-          const r = (poolNostr as any).relay(relayUrl);
-          return await r.query(filters, { signal });
-        } catch (e) {
+          const r = (poolNostr as { relay: (url: string) => { query: (f: unknown[], o: { signal: AbortSignal }) => Promise<unknown[]> } }).relay(relayUrl);
+          return await r.query(filters, { signal }) as NostrEvent[];
+        } catch {
           return [];
         }
       };
@@ -960,7 +949,7 @@ export default function AdminForms() {
       ]);
 
       const allEvents = results
-        .filter((r): r is PromiseFulfilledResult<any[]> => r.status === 'fulfilled')
+        .filter((r): r is PromiseFulfilledResult<NostrEvent[]> => r.status === 'fulfilled')
         .flatMap(r => r.value);
 
       // Deduplicate by ID
@@ -1237,7 +1226,7 @@ export default function AdminForms() {
   };
 
   // Edit form
-  const handleEdit = (form: NostrForm) => {
+  const _handleEdit = (form: NostrForm) => {
     if (user && form.pubkey !== user.pubkey) {
       toast({
         title: 'Error',
@@ -1259,7 +1248,7 @@ export default function AdminForms() {
   };
 
   // Delete form
-  const handleDelete = (form: NostrForm) => {
+  const _handleDelete = (form: NostrForm) => {
     setSelectedForm(form);
     setDeleteDialogOpen(true);
   };
@@ -1683,13 +1672,13 @@ export default function AdminForms() {
               <FormCard
                 key={form.eventId}
                 form={form}
-                user={user as any || null}
+                user={user ?? null}
                 isAdmin={isAdmin}
                 onEdit={() => {
                   setFormName(form.name);
                   setFormDescription(form.description || '');
                   setFormFields([...form.fields]);
-                  setFormSettings({ encrypted: !!(form.settings as any)?.encrypted });
+                  setFormSettings({ encrypted: !!(form.settings?.encrypted) });
                   setEditingForm(form);
                   setEditingFormResponseCount(responseCounts?.[`30168:${form.pubkey}:${form.id}`] || 0);
                   setIsCreating(true);

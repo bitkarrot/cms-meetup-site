@@ -167,7 +167,7 @@ function FieldRenderer({
         </RadioGroup>
       );
 
-    case 'multipleChoice':
+    case 'multipleChoice': {
       const selectedChoices = (value as string[]) || [];
       return (
         <div className="space-y-2">
@@ -191,6 +191,7 @@ function FieldRenderer({
           ))}
         </div>
       );
+    }
 
     case 'label':
       return null; // Labels don't have input
@@ -412,7 +413,7 @@ export default function FormPage() {
 
     try {
       // Build response object
-      const responseData: Record<string, any> = {};
+      const responseData: Record<string, unknown> = {};
       formEvent.formData.fields
         .filter((field) => field.type !== 'label')
         .forEach((field) => {
@@ -597,7 +598,7 @@ export default function FormPage() {
               </div>
             )}
 
-            {formData.fields.map((field, index) => (
+            {formData.fields.map((field, _index) => (
               <div key={field.id} className="space-y-2">
                 {field.type === 'label' ? (
                   <div className="py-2">

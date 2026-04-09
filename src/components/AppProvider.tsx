@@ -250,7 +250,7 @@ function useTweakCNTheme(themeUrl?: string) {
 /**
  * Inject Google Fonts links for fonts specified in the theme
  */
-async function injectGoogleFonts(vars: any) {
+async function injectGoogleFonts(vars: Record<string, Record<string, string>>) {
   const fontFamilies = new Set<string>();
 
   // Collect font families from all sections
@@ -298,7 +298,7 @@ async function injectGoogleFonts(vars: any) {
 /**
  * Process the css object from TweakCN theme and convert to CSS string
  */
-function processThemeCss(css: any): string {
+function processThemeCss(css: Record<string, unknown>): string {
   let cssString = '';
 
   if (!css) return cssString;
